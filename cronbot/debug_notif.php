@@ -115,32 +115,41 @@ echo "   status allowed for warn? " . ($statusOk ? 'YES' : 'NO (' . ($userData['
 
 $eligible = empty($status_cron['volume']) ? false : true;
 echo "7) Decision tree:\n";
+$blockReason = null;
 if (!$eligible) {
-    echo "   BLOCKED: cron volume notifications are OFF in admin settings\n";
+    $blockReason = 'cron volume notifications are OFF in admin settings';
 } elseif (!empty($check_send['volume'])) {
-    echo "   BLOCKED: notifctions.volume already true (already marked sent)\n";
+    $blockReason = 'notifctions.volume already true (already marked sent)';
 } elseif (intval($user['status_cron'] ?? 1) == 0) {
-    echo "   BLOCKED: user.status_cron = 0\n";
+    $blockReason = 'user.status_cron = 0';
 } elseif ($dataLimit <= 0) {
-    echo "   BLOCKED: unlimited / zero data_limit\n";
+    $blockReason = 'unlimited / zero data_limit';
 } elseif (!$statusOk) {
-    echo "   BLOCKED: panel status not in active/Unknown/limited\n";
+    $blockReason = 'panel status not in active/Unknown/limited';
 } elseif ($dataLimit > 0 && ($used / $dataLimit) * 100 < 80) {
-    echo "   BLOCKED: used% still under 80%\n";
+    $blockReason = 'used% still under 80%';
+}
+
+if ($blockReason) {
+    echo "   BLOCKED: {$blockReason}\n";
 } else {
     echo "   SHOULD SEND volume warning now.\n";
-    echo "   Trying dry send? set env SEND=1 to actually send.\n";
-    if (getenv('SEND') === '1') {
-        $token = (!empty($invoice['bottype'])) ? $invoice['bottype'] : null;
-        $msg = "🧪 تست نوتیف حجم برای سرویس <code>" . htmlspecialchars($username) . "</code>";
-        $result = sendmessage($invoice['id_user'], $msg, null, 'HTML', $token);
-        echo "   send result: " . json_encode($result, JSON_UNESCAPED_UNICODE) . "\n";
-        if (is_array($result) && !empty($result['ok'])) {
-            echo "   Telegram OK — user can receive messages.\n";
-        } else {
-            echo "   Telegram FAIL — user blocked bot / wrong token / chat id.\n";
-        }
+}
+
+// SEND=1 always attempts a test Telegram message (even if cron would skip)
+if (getenv('SEND') === '1') {
+    echo "\n7b) Force test send (SEND=1):\n";
+    $token = (!empty($invoice['bottype'])) ? $invoice['bottype'] : null;
+    $msg = "🧪 تست نوتیف حجم برای سرویس <code>" . htmlspecialchars($username) . "</code>";
+    $result = sendmessage($invoice['id_user'], $msg, null, 'HTML', $token);
+    echo "   send result: " . json_encode($result, JSON_UNESCAPED_UNICODE) . "\n";
+    if (is_array($result) && !empty($result['ok'])) {
+        echo "   Telegram OK — user can receive messages.\n";
+    } else {
+        echo "   Telegram FAIL — user blocked bot / wrong token / chat id.\n";
     }
+} else {
+    echo "   Tip: run with SEND=1 to force a test Telegram message.\n";
 }
 
 echo "\n8) Cron queue eligibility:\n";
