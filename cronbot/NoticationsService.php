@@ -49,14 +49,28 @@ class ServiceMonitor
             if (!is_array($check_send)) {
                 $check_send = ['volume' => false, 'time' => false];
             }
-            // Resolve panel/user first — do NOT bump time_cron on failure,
-            // otherwise a bad panel response starves the invoice for ~1 hour.
+
             $data = $this->processInvoice($invoice);
-            if (!is_array($data)) {
+            if (!is_array($data) || empty($data['ok'])) {
+                $reason = is_array($data) ? ($data['reason'] ?? 'unknown') : 'processInvoice_failed';
+                $msg = is_array($data) ? ($data['msg'] ?? '') : '';
                 error_log('[NoticationsService] skip invoice=' . ($invoice['id_invoice'] ?? '') .
-                    ' user=' . ($invoice['username'] ?? '') . ' reason=processInvoice_failed');
+                    ' user=' . ($invoice['username'] ?? '') . ' reason=' . $reason .
+                    ($msg !== '' ? (' msg=' . $msg) : ''));
+
+                // Deleted / missing on panel → drop from cron queue so others keep sending
+                if ($reason === 'panel_user_not_found') {
+                    update("invoice", "Status", "removebyadmin", "id_invoice", $invoice['id_invoice']);
+                    update("invoice", "time_cron", time(), "id_invoice", $invoice['id_invoice']);
+                    error_log('[NoticationsService] marked removebyadmin invoice=' . ($invoice['id_invoice'] ?? '') .
+                        ' user=' . ($invoice['username'] ?? ''));
+                } else {
+                    // Temporary panel/API failure: delay retry, do not block the rest of the queue
+                    update("invoice", "time_cron", time(), "id_invoice", $invoice['id_invoice']);
+                }
                 continue;
             }
+
             update("invoice", "time_cron", time(), "id_invoice", $invoice['id_invoice']);
             $result = false;
             if (empty($check_send['volume'])) {
@@ -73,7 +87,7 @@ class ServiceMonitor
                 $this->shouldRemoveService($data['invoice'], $data['user'], $data['userData'], $invoice['username']);
             if (!empty($this->status_cron['remove_volume']))
                 $this->shouldRemoveServiceـvolume($data['invoice'], $data['user'], $data['userData'], $invoice['username']);
-            if ($data['panel']['inboundstatus'] == "oninbounddisable" && $data['panel']['type'] == "marzban")
+            if (($data['panel']['inboundstatus'] ?? '') == "oninbounddisable" && ($data['panel']['type'] ?? '') == "marzban")
                 $this->active_inbound_expire($data['invoice'], $data['userData'], $data['panel']);
         }
     }
@@ -92,23 +106,33 @@ class ServiceMonitor
     {
         $username = $invoice['username'];
 
-        // Get panel information
         $panelInfo = select("marzban_panel", "*", "name_panel", $invoice['Service_location'], "select");
-        if (!$panelInfo)
-            return false;
+        if (!$panelInfo) {
+            return ['ok' => false, 'reason' => 'panel_missing'];
+        }
 
-        if ($panelInfo['status'] == "disabled")
-            return false;
-        // Get user information
+        if (($panelInfo['status'] ?? '') == "disabled") {
+            return ['ok' => false, 'reason' => 'panel_disabled'];
+        }
+
         $user = select("user", "*", "id", $invoice['id_user'], "select");
-        if ($user == false)
-            return false;
+        if ($user == false) {
+            return ['ok' => false, 'reason' => 'telegram_user_missing'];
+        }
 
-        // Get username data from panel
         $userData = $this->Panel->DataUser($invoice['Service_location'], $username);
-        if (!$userData || $userData['status'] == "Unsuccessful")
-            return;
+        if (!$userData || ($userData['status'] ?? '') == "Unsuccessful") {
+            $msg = is_array($userData) ? (string)($userData['msg'] ?? '') : '';
+            $reason = 'panel_lookup_failed';
+            // 3x-ui / marzban style "not found" → treat as deleted from panel
+            if (stripos($msg, 'not found') !== false || stripos($msg, 'User Not Found') !== false) {
+                $reason = 'panel_user_not_found';
+            }
+            return ['ok' => false, 'reason' => $reason, 'msg' => $msg];
+        }
+
         return [
+            'ok' => true,
             'invoice' => $invoice,
             'panel' => $panelInfo,
             'user' => $user,
