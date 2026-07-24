@@ -45,14 +45,19 @@ class ServiceMonitor
                 if ($time_cron < 1600)
                     continue;
             }
-            update("invoice", "time_cron", time(), "id_invoice", $invoice['id_invoice']);
             $check_send = json_decode($invoice['notifctions'] ?? '', true);
             if (!is_array($check_send)) {
                 $check_send = ['volume' => false, 'time' => false];
             }
+            // Resolve panel/user first — do NOT bump time_cron on failure,
+            // otherwise a bad panel response starves the invoice for ~1 hour.
             $data = $this->processInvoice($invoice);
-            if (!is_array($data))
+            if (!is_array($data)) {
+                error_log('[NoticationsService] skip invoice=' . ($invoice['id_invoice'] ?? '') .
+                    ' user=' . ($invoice['username'] ?? '') . ' reason=processInvoice_failed');
                 continue;
+            }
+            update("invoice", "time_cron", time(), "id_invoice", $invoice['id_invoice']);
             $result = false;
             if (empty($check_send['volume'])) {
                 if (!empty($this->status_cron['volume']))
@@ -143,6 +148,8 @@ class ServiceMonitor
                 $this->updateInvoiceStatus("volume", $invoice);
                 return true;
             }
+            error_log('[NoticationsService] volume warn send FAILED user=' . ($invoice['id_user'] ?? '') .
+                ' service=' . $username . ' status_cron=' . ($user['status_cron'] ?? ''));
             return false;
         }
         return false;
