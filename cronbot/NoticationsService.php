@@ -23,9 +23,13 @@ class ServiceMonitor
         global $pdo;
         $this->pdo = $pdo;
         $this->Panel = new ManagePanel();
-        $this->reportCron = select("topicid", "idreport", "report", "reportcron", "select")['idreport'];
+        $reportTopic = select("topicid", "idreport", "report", "reportcron", "select");
+        $this->reportCron = is_array($reportTopic) ? ($reportTopic['idreport'] ?? null) : null;
         $this->setting = select("setting", "*");
-        $this->status_cron = json_decode($this->setting['cron_status'], true);
+        $this->status_cron = json_decode($this->setting['cron_status'] ?? '{}', true);
+        if (!is_array($this->status_cron)) {
+            $this->status_cron = [];
+        }
         $this->textBotLang = languagechange();
         $this->text_Purchased_services = $this->textBotLang['textbot']['purchasedServices'] ?? '';
     }
@@ -42,24 +46,27 @@ class ServiceMonitor
                     continue;
             }
             update("invoice", "time_cron", time(), "id_invoice", $invoice['id_invoice']);
-            $check_send = json_decode($invoice['notifctions'], true);
+            $check_send = json_decode($invoice['notifctions'] ?? '', true);
+            if (!is_array($check_send)) {
+                $check_send = ['volume' => false, 'time' => false];
+            }
             $data = $this->processInvoice($invoice);
             if (!is_array($data))
                 continue;
             $result = false;
-            if (!$check_send['volume']) {
-                if ($this->status_cron['volume'])
+            if (empty($check_send['volume'])) {
+                if (!empty($this->status_cron['volume']))
                     $result = $this->checkVolumeThreshold($data['invoice'], $data['user'], $data['userData'], $invoice['username']);
             }
             if ($result)
                 $data['invoice'] = select("invoice", "*", "id_invoice", $invoice['id_invoice']);
-            if (!$check_send['time']) {
-                if ($this->status_cron['day'])
+            if (empty($check_send['time'])) {
+                if (!empty($this->status_cron['day']))
                     $this->checkTimeExpiration($data['invoice'], $data['user'], $data['userData'], $invoice['username']);
             }
-            if ($this->status_cron['remove'])
+            if (!empty($this->status_cron['remove']))
                 $this->shouldRemoveService($data['invoice'], $data['user'], $data['userData'], $invoice['username']);
-            if ($this->status_cron['remove_volume'])
+            if (!empty($this->status_cron['remove_volume']))
                 $this->shouldRemoveServiceـvolume($data['invoice'], $data['user'], $data['userData'], $invoice['username']);
             if ($data['panel']['inboundstatus'] == "oninbounddisable" && $data['panel']['type'] == "marzban")
                 $this->active_inbound_expire($data['invoice'], $data['userData'], $data['panel']);
@@ -111,10 +118,11 @@ class ServiceMonitor
         if (empty($dataLimit) || $dataLimit <= 0) {
             return false;
         }
-        $remainingVolume = $dataLimit - $userData['used_traffic'];
-        // Warn when remaining volume drops to or below the admin-configured threshold (in GB)
-        $warningThresholdBytes = floatval($this->setting['volumewarn']) * 1024 * 1024 * 1024;
-        $isVolumeWarning = $remainingVolume <= $warningThresholdBytes && in_array($userData['status'], ['active', 'Unknown', 'limited']);
+        $usedTraffic = floatval($userData['used_traffic'] ?? 0);
+        $remainingVolume = $dataLimit - $usedTraffic;
+        // Warn at 80% used OR any point past 80% (including fully exhausted)
+        $usedPercent = ($usedTraffic / $dataLimit) * 100;
+        $isVolumeWarning = $usedPercent >= 80 && in_array($userData['status'], ['active', 'Unknown', 'limited']);
 
         if ($isVolumeWarning) {
             $remaining = max(0, $remainingVolume);
@@ -129,11 +137,15 @@ class ServiceMonitor
                 sprintf($this->textBotLang['hardcoded']['notifServiceUsername'], $username) .
                 sprintf($this->textBotLang['hardcoded']['notifServiceStatus'], $userData['status']) .
                 sprintf($this->textBotLang['hardcoded']['notifRemainingVolume'], $formattedVolume);
-            $this->send_notifactions($invoice, $user, $message, true, $invoice['bottype']);
-            $this->sendReportNotification($reportMessage);
-            $this->updateInvoiceStatus("volume", $invoice);
-            return true;
+            $sent = $this->send_notifactions($invoice, $user, $message, true, $invoice['bottype']);
+            if ($sent) {
+                $this->sendReportNotification($reportMessage);
+                $this->updateInvoiceStatus("volume", $invoice);
+                return true;
+            }
+            return false;
         }
+        return false;
     }
     private function shouldRemoveService($invoice, $user, $userData, $username)
     {
@@ -222,15 +234,23 @@ class ServiceMonitor
     }
     private function checkTimeExpiration($invoice, $user, $userData, $username)
     {
-        $validStatuses = ['expired', 'on_hold', 'limited'];
-        if (in_array($userData['status'], $validStatuses))
-            return;
-        $timeRemaining = $userData['expire'] - time();
-        $daysRemaining = intval($timeRemaining / self::SECONDS_PER_DAY);
-        // Use the admin-configured number of days before expiry to warn the user
-        $warningThreshold = intval($this->setting['daywarn']) * self::SECONDS_PER_DAY;
+        // Skip on-hold / unlimited-time services
+        if (($userData['status'] ?? '') === 'on_hold')
+            return false;
+        $expire = intval($userData['expire'] ?? 0);
+        if ($expire <= 0)
+            return false;
 
-        $isTimeWarning = $timeRemaining <= $warningThreshold && $timeRemaining > 0;
+        $totalSeconds = $this->resolveServiceTotalSeconds($invoice, $expire);
+        if ($totalSeconds <= 0)
+            return false;
+
+        $timeRemaining = $expire - time();
+        $daysRemaining = max(0, intval($timeRemaining / self::SECONDS_PER_DAY));
+        // Warn at 80% of total duration used OR any point past 80% (including fully expired)
+        $elapsed = $totalSeconds - $timeRemaining;
+        $usedPercent = ($elapsed / $totalSeconds) * 100;
+        $isTimeWarning = $usedPercent >= 80 && in_array($userData['status'], ['active', 'Unknown', 'limited', 'expired']);
 
         if ($isTimeWarning) {
             $message = $this->textBotLang['hardcoded']['notifGreeting2'] .
@@ -243,29 +263,53 @@ class ServiceMonitor
                 sprintf($this->textBotLang['hardcoded']['notifServiceUsername2'], $invoice['username']) .
                 sprintf($this->textBotLang['hardcoded']['notifServiceStatus2'], $userData['status']) .
                 sprintf($this->textBotLang['hardcoded']['notifRemainingDays'], $daysRemaining);
-            $this->send_notifactions($invoice, $user, $message, true, $invoice['bottype']);
-            $this->sendReportNotification($reportMessage);
-            $this->updateInvoiceStatus("time", $invoice);
-            return true;
+            $sent = $this->send_notifactions($invoice, $user, $message, true, $invoice['bottype']);
+            if ($sent) {
+                $this->sendReportNotification($reportMessage);
+                $this->updateInvoiceStatus("time", $invoice);
+                return true;
+            }
+            return false;
         }
+        return false;
+    }
+
+    /**
+     * Total purchased duration in seconds (for 80% time warnings).
+     * Prefers invoice Service_time; falls back to expire - time_sell.
+     */
+    private function resolveServiceTotalSeconds($invoice, $expire)
+    {
+        $serviceDays = intval($invoice['Service_time'] ?? 0);
+        if ($serviceDays > 0) {
+            return $serviceDays * self::SECONDS_PER_DAY;
+        }
+        $soldAt = intval($invoice['time_sell'] ?? 0);
+        if ($soldAt > 0 && $expire > $soldAt) {
+            return $expire - $soldAt;
+        }
+        return 0;
     }
 
     private function send_notifactions($invoice, $user, $message, $keyboard_active, $bot_token)
     {
-        if (intval($user['status_cron']) == 0)
-            return;
-        $keyboard = $this->createExtendServiceKeyboard($invoice['id_invoice']);
-        $keyboard = $keyboard_active ? $keyboard : null;
-        sendmessage($invoice['id_user'], $message, $keyboard, 'HTML', $bot_token);
+        if (intval($user['status_cron'] ?? 1) == 0)
+            return false;
+        $keyboard = $keyboard_active ? $this->createExtendServiceKeyboard($invoice['id_invoice']) : null;
+        // Empty bottype must fall back to main bot token (null), not ""
+        $token = (isset($bot_token) && $bot_token !== '') ? $bot_token : null;
+        $result = sendmessage($invoice['id_user'], $message, $keyboard, 'HTML', $token);
+        return is_array($result) && !empty($result['ok']);
     }
 
     private function createExtendServiceKeyboard($invoiceId)
     {
-        global $textbotlang;
+        // Must use $this->textBotLang — global $textbotlang is only set in webhook (index.php), not in cron
+        $btnText = $this->textBotLang['keyboard']['renewService'] ?? '💊 تمدید سرویس';
         return json_encode([
             'inline_keyboard' => [
                 [
-                    ['text' => $textbotlang['keyboard']['renewService'], 'callback_data' => 'extend_' . $invoiceId],
+                    ['text' => $btnText, 'callback_data' => 'extend_' . $invoiceId],
                 ],
             ]
         ]);
@@ -276,18 +320,23 @@ class ServiceMonitor
         if (empty($this->setting['Channel_Report']))
             return;
 
-
-        telegram('sendmessage', [
+        $payload = [
             'chat_id' => $this->setting['Channel_Report'],
-            'message_thread_id' => $this->reportCron,
             'text' => $reportMessage,
             'parse_mode' => "HTML"
-        ]);
+        ];
+        if (!empty($this->reportCron) && intval($this->reportCron) > 0) {
+            $payload['message_thread_id'] = $this->reportCron;
+        }
+        telegram('sendmessage', $payload);
     }
 
     private function updateInvoiceStatus($type, $invoice)
     {
-        $data = json_decode($invoice['notifctions'], true);
+        $data = json_decode($invoice['notifctions'] ?? '', true);
+        if (!is_array($data)) {
+            $data = ['volume' => false, 'time' => false];
+        }
         $data[$type] = true;
         $data = json_encode($data);
         update("invoice", "notifctions", $data, "id_invoice", $invoice['id_invoice']);
