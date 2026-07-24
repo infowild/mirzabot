@@ -35,9 +35,12 @@ $totalPages = max(1, (int) ceil($total / $perPage));
 
 $totalSuccess = 0;
 $todayCount = 0;
+$REAL_PAY = "Payment_Method NOT IN ('add balance by admin','low balance by admin')";
+$todayPayStart = date('Y/m/d') . ' 00:00:00';
 try {
-  $totalSuccess = (int) db_query($pdo, "SELECT COALESCE(SUM(price),0) FROM Payment_report WHERE payment_Status ='paid'")->fetchColumn();
-  $todayCount = db_count($pdo, "SELECT COUNT(*) FROM Payment_report WHERE time > ?", [strtotime('today')]);
+  $totalSuccess = (int) db_query($pdo, "SELECT COALESCE(SUM(CAST(price AS SIGNED)),0) FROM Payment_report WHERE payment_Status ='paid' AND $REAL_PAY")->fetchColumn();
+  // Payment_report.time is 'Y/m/d H:i:s' string — not unix timestamp
+  $todayCount = db_count($pdo, "SELECT COUNT(*) FROM Payment_report WHERE time >= ?", [$todayPayStart]);
 } catch (Exception $e) {
 }
 
@@ -53,6 +56,7 @@ $methodMap = [
   'low balance by admin' => $textbotlang['panel']['paymentMethodAdminDeduct'],
   'add balance by admin' => $textbotlang['panel']['paymentMethodAdminAdd'],
   'Currency Rial 1' => $textbotlang['panel']['paymentMethodRialGateway1'],
+  'Currency Rial 2' => $textbotlang['panel']['paymentMethodRialGateway2'],
   'Currency Rial tow' => $textbotlang['panel']['paymentMethodRialGateway2'],
   'Currency Rial 3' => $textbotlang['panel']['paymentMethodRialGateway3'],
   'aqayepardakht' => $textbotlang['panel']['paymentMethodAqayePardakht'],
@@ -99,7 +103,7 @@ include __DIR__ . '/inc/layout_head.php';
       </select>
       <div class="search-box" style="min-width:230px">
         <?= icon('search', 14) ?>
-        <input type="text" name="q" placeholder=$textbotlang['panel']['paymentSearchTransactionPlaceholder']
+        <input type="text" name="q" placeholder="<?= htmlspecialchars($textbotlang['panel']['paymentSearchTransactionPlaceholder'] ?? '') ?>"
           value="<?= htmlspecialchars($search) ?>">
         <button type="button" class="search-clear">✕</button>
         <button type="submit" class="search-btn"><?= $textbotlang['panel']['paymentColTrackingCode'] ?></button>
@@ -126,7 +130,7 @@ include __DIR__ . '/inc/layout_head.php';
       <tbody>
         <?php if (empty($payments)): ?>
           <tr>
-            <td>
+            <td colspan="7">
               <div class="empty">
                 <div class="empty-mark">—</div>
                 <p><?= $textbotlang['panel']['paymentDetailStatus'] ?></p>
@@ -153,7 +157,7 @@ include __DIR__ . '/inc/layout_head.php';
               <td style="font-size:.78rem;color:var(--text-dim);white-space:nowrap">
                 <?= safe_date($p['time'] ?? null, 'Y/m/d H:i') ?>
               </td>
-              <td><span class="tag <?= $cls ?>"><?= $lbl ?></span></td>
+              <td><span class="tag <?= $cls ?>"><?= htmlspecialchars($lbl) ?></span></td>
             </tr>
           <?php endforeach; endif; ?>
       </tbody>

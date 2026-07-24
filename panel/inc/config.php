@@ -183,11 +183,25 @@ function trunc(string $str, int $max = 30): string
 
 function safe_date($ts, string $fmt = 'Y/m/d'): string
 {
-    if (!$ts)
+    if ($ts === null || $ts === '' || $ts === false) {
         return '—';
-    if (!is_numeric($ts))
-        return htmlspecialchars((string) $ts);
-    return date($fmt, (int) $ts);
+    }
+    if (is_numeric($ts)) {
+        $n = (int) $ts;
+        if ($n > 1_000_000_000_000) {
+            $n = (int) floor($n / 1000);
+        }
+        if ($n > 1_000_000) {
+            return date($fmt, $n);
+        }
+        return '—';
+    }
+    // Payment_report / service_other store 'Y/m/d H:i:s'
+    $parsed = strtotime(str_replace('/', '-', (string) $ts));
+    if ($parsed !== false) {
+        return date($fmt, $parsed);
+    }
+    return htmlspecialchars((string) $ts);
 }
 function check_login_rate(string $ip): bool
 {

@@ -9,24 +9,29 @@ $activeNow = $pendingPay = $txToday = $expiredServices = 0;
 $totalPanels = 0;
 $weeklyRevenue = $panelsList = $recentInvoices = $recentUsers = [];
 
-$PAID = "Status IN ('active','end_of_time','end_of_volume','sendedwarn','send_on_hold')";
+$TEST_NAME = $textbotlang['Admin']['adminphp']['db_test_service_name'] ?? 'سرویس تست';
+$NOT_TEST  = 'name_product != ' . $pdo->quote($TEST_NAME);
+$PAID = "Status IN ('active','end_of_time','end_of_volume','sendedwarn','send_on_hold','removeTime','removevolume') AND $NOT_TEST";
+$todayUnix = strtotime('today');
+$todayPayStart = date('Y/m/d') . ' 00:00:00';
 
 try {
     $totalUsers   = db_count($pdo, "SELECT COUNT(*) FROM user");
-    $newToday     = db_count($pdo, "SELECT COUNT(*) FROM user WHERE register > ?", [strtotime('today')]);
+    $newToday     = db_count($pdo, "SELECT COUNT(*) FROM user WHERE register > ?", [$todayUnix]);
     $blockedUsers = db_count($pdo, "SELECT COUNT(*) FROM user WHERE User_Status='block'");
 } catch (Exception $e) {}
 
 try {
-    $totalRevenue    = (int) db_query($pdo, "SELECT COALESCE(SUM(price_product),0) FROM invoice WHERE $PAID")->fetchColumn();
-    $todayRevenue    = (int) db_query($pdo, "SELECT COALESCE(SUM(price_product),0) FROM invoice WHERE time_sell > ? AND $PAID", [strtotime('today')])->fetchColumn();
-    $activeNow       = db_count($pdo, "SELECT COUNT(*) FROM invoice WHERE Status='active'");
-    $expiredServices = db_count($pdo, "SELECT COUNT(*) FROM invoice WHERE Status IN ('end_of_time','end_of_volume')");
+    $totalRevenue    = (int) db_query($pdo, "SELECT COALESCE(SUM(CAST(price_product AS SIGNED)),0) FROM invoice WHERE $PAID")->fetchColumn();
+    $todayRevenue    = (int) db_query($pdo, "SELECT COALESCE(SUM(CAST(price_product AS SIGNED)),0) FROM invoice WHERE CAST(time_sell AS UNSIGNED) > ? AND $PAID", [$todayUnix])->fetchColumn();
+    $activeNow       = db_count($pdo, "SELECT COUNT(*) FROM invoice WHERE Status='active' AND $NOT_TEST");
+    $expiredServices = db_count($pdo, "SELECT COUNT(*) FROM invoice WHERE Status IN ('end_of_time','end_of_volume') AND $NOT_TEST");
 } catch (Exception $e) {}
 
 try {
     $pendingPay = db_count($pdo, "SELECT COUNT(*) FROM Payment_report WHERE payment_Status='waiting'");
-    $txToday    = db_count($pdo, "SELECT COUNT(*) FROM Payment_report WHERE time > ?", [strtotime('today')]);
+    // Payment_report.time is stored as 'Y/m/d H:i:s' string — not unix
+    $txToday    = db_count($pdo, "SELECT COUNT(*) FROM Payment_report WHERE time >= ?", [$todayPayStart]);
 } catch (Exception $e) {}
 
 try { $totalPanels = db_count($pdo, "SELECT COUNT(*) FROM marzban_panel"); } catch (Exception $e) {}

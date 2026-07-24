@@ -24,6 +24,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $amount = (int) ($_POST['amount'] ?? 0);
         if ($amount >= 1000) {
             db_query($pdo, "UPDATE user SET Balance = Balance + ? WHERE id = ?", [$amount, $id]);
+            // Keep audit trail consistent with Telegram admin balance adds
+            try {
+                $orderId = bin2hex(random_bytes(5));
+                db_query($pdo,
+                    "INSERT INTO Payment_report (id_user, id_order, time, price, payment_Status, Payment_Method, id_invoice)
+                     VALUES (?, ?, ?, ?, 'paid', 'add balance by admin', 'none')",
+                    [(string)$id, $orderId, date('Y/m/d H:i:s'), (string)$amount]
+                );
+            } catch (Exception $e) {
+                error_log('user.php Payment_report insert failed: ' . $e->getMessage());
+            }
             flash('success', number_format($amount) . $textbotlang['panel']['userBalanceAddedSuffix']);
         } else {
             flash('error', $textbotlang['panel']['userMinAmountToman']);
@@ -60,10 +71,16 @@ try {
 }
 
 $balance = (int) ($user['Balance'] ?? 0);
-$totalSpent = array_sum(array_column($invoices, 'price_product'));
-$activeServices = count(array_filter($invoices, fn($inv) => ($inv['Status'] ?? '') === 'active'));
-$expiredServices = count(array_filter($invoices, fn($inv) => in_array($inv['Status'] ?? '', ['end_of_time', 'end_of_volume', 'expired'])));
-$paidCount = count(array_filter($payments, fn($p) => in_array($p['payment_Status'] ?? '', ['paid', 'success'])));
+$TEST_NAME = $textbotlang['Admin']['adminphp']['db_test_service_name'] ?? 'سرویس تست';
+$PAID_INV = ['active', 'end_of_time', 'end_of_volume', 'sendedwarn', 'send_on_hold', 'removeTime', 'removevolume'];
+$totalSpent = array_sum(array_map(function ($inv) use ($PAID_INV, $TEST_NAME) {
+    if (($inv['name_product'] ?? '') === $TEST_NAME) return 0;
+    if (!in_array($inv['Status'] ?? '', $PAID_INV, true)) return 0;
+    return (int) ($inv['price_product'] ?? 0);
+}, $invoices));
+$activeServices = count(array_filter($invoices, fn($inv) => ($inv['Status'] ?? '') === 'active' && ($inv['name_product'] ?? '') !== $TEST_NAME));
+$expiredServices = count(array_filter($invoices, fn($inv) => in_array($inv['Status'] ?? '', ['end_of_time', 'end_of_volume', 'expired'], true)));
+$paidCount = count(array_filter($payments, fn($p) => in_array($p['payment_Status'] ?? '', ['paid', 'success'], true)));
 $convRate = count($payments) > 0 ? round($paidCount / count($payments) * 100) : 0;
 
 $agent = $user['agent'] ?? 'f';
@@ -231,12 +248,12 @@ include __DIR__ . '/inc/layout_head.php';
                 <div style="height:1px;background:var(--bd);margin:2px 0"></div>
                 <?php if ($isBlocked): ?>
                     <a href="user_action.php?action=unblock&id=<?= $id ?>&_csrf=<?= csrf_token() ?>&back=user.php"
-                        class="btn btn-ok btn-sm" style="justify-content:center" data-confirm=$textbotlang['panel']['userConfirmUnblockUser']>
+                        class="btn btn-ok btn-sm" style="justify-content:center" data-confirm="<?= htmlspecialchars($textbotlang['panel']['userConfirmUnblockUser'] ?? 'آنبلاک؟', ENT_QUOTES) ?>">
                         <?= icon('check', 13) ?> <?= $textbotlang['panel']['userColDate'] ?>
                     </a>
                 <?php else: ?>
                     <a href="user_action.php?action=block&id=<?= $id ?>&_csrf=<?= csrf_token() ?>&back=user.php"
-                        class="btn btn-no btn-sm" style="justify-content:center" data-confirm=$textbotlang['panel']['userConfirmBlockUser']>
+                        class="btn btn-no btn-sm" style="justify-content:center" data-confirm="<?= htmlspecialchars($textbotlang['panel']['userConfirmBlockUser'] ?? 'بلاک؟', ENT_QUOTES) ?>">
                         <?= icon('block', 13) ?> <?= $textbotlang['panel']['userNoTransactionForUser'] ?>
                     </a>
                 <?php endif; ?>
@@ -300,7 +317,9 @@ include __DIR__ . '/inc/layout_head.php';
                                     'end_of_volume' => ['tag-no', $textbotlang['panel']['userStatusNearVolumeEnd']],
                                     'sendedwarn' => ['tag-warn', $textbotlang['panel']['userNotifAllSent']],
                                     'send_on_hold' => ['tag-plain', $textbotlang['panel']['userStatusWaiting']],
-                                    'unpiad' => ['tag-plain', $textbotlang['panel']['userStatusUnpaid']],
+                                    'unpaid' => ['tag-plain', $textbotlang['panel']['userStatusUnpaid']],
+                                    'removeTime' => ['tag-no', 'حذف‌شده (زمان)'],
+                                    'removevolume' => ['tag-no', 'حذف‌شده (حجم)'],
                                 ];
                                 foreach ($invoices as $inv):
                                     [$tagClass, $label] = $statusMap[$inv['Status'] ?? ''] ?? ['tag-plain', $inv['Status'] ?? '—'];
@@ -317,7 +336,7 @@ include __DIR__ . '/inc/layout_head.php';
                                         <td class="cf" style="white-space:nowrap">
                                             <?= safe_date($inv['time_sell'] ?? null, 'Y/m/d') ?>
                                         </td>
-                                        <td><span class="tag <?= $tagClass ?>"><?= $label ?></span></td>
+                                        <td><span class="tag <?= $tagClass ?>"><?= htmlspecialchars($label) ?></span></td>
                                     </tr>
                                 <?php endforeach; endif; ?>
                         </tbody>
@@ -356,6 +375,7 @@ include __DIR__ . '/inc/layout_head.php';
                                     'nowpayment' => 'NowPayment',
                                     'Star Telegram' => $textbotlang['panel']['userMethodTelegramStar'],
                                     'Currency Rial 1' => $textbotlang['panel']['userMethodRial1'],
+                                    'Currency Rial 2' => $textbotlang['panel']['userMethodRial2'],
                                     'Currency Rial tow' => $textbotlang['panel']['userMethodRial2'],
                                     'Currency Rial 3' => $textbotlang['panel']['userMethodRial3'],
                                     'arze digital offline' => $textbotlang['panel']['userMethodCrypto'],
@@ -462,7 +482,7 @@ include __DIR__ . '/inc/layout_head.php';
                 <input type="hidden" name="action" value="add_balance">
                 <div class="field">
                     <label><?= $textbotlang['panel']['userDetailUser'] ?></label>
-                    <input type="number" name="amount" class="input" placeholder=$textbotlang['panel']['userAmountPlaceholder'] min="1000" required>
+                    <input type="number" name="amount" class="input" placeholder="<?= htmlspecialchars($textbotlang['panel']['userAmountPlaceholder'] ?? '') ?>" min="1000" required>
                     <span class="field-hint"><?= $textbotlang['panel']['userDetailAmount'] ?> <strong><?= number_format($balance) ?> <?= $textbotlang['panel']['userDetailMethod'] ?></strong></span>
                 </div>
             </div>

@@ -55,14 +55,13 @@ include __DIR__ . '/inc/layout_head.php';
     <div class="toolbar-title"><?= $textbotlang['panel']['servicesPageHeading'] ?> <small>(<?= number_format($total) ?>)</small></div>
     <form method="GET" id="srvForm" class="toolbar-end">
       <select name="status" class="select" style="width:auto" onchange="document.getElementById('srvForm').submit()">
-        <option value=""><?= $textbotlang['panel']['serviceColUser'] ?></option>
-        <option value="done" <?= $status === 'done' ? 'selected' : '' ?>><?= $textbotlang['panel']['serviceColType'] ?></option>
-        <option value="pending" <?= $status === 'pending' ? 'selected' : '' ?>><?= $textbotlang['panel']['serviceColService'] ?></option>
-        <option value="reject" <?= $status === 'reject' ? 'selected' : '' ?>><?= $textbotlang['panel']['serviceColStatus'] ?></option>
+        <option value=""><?= $textbotlang['panel']['serviceColUser'] ?? 'همه وضعیت‌ها' ?></option>
+        <option value="paid" <?= $status === 'paid' ? 'selected' : '' ?>><?= $textbotlang['panel']['serviceStatusDone'] ?? 'پرداخت‌شده' ?></option>
+        <option value="unpaid" <?= $status === 'unpaid' ? 'selected' : '' ?>><?= $textbotlang['panel']['serviceStatusWaiting'] ?? 'پرداخت‌نشده' ?></option>
       </select>
       <div class="search-box" style="min-width:240px">
         <?= icon('search', 14) ?>
-        <input type="text" name="q" placeholder=$textbotlang['panel']['serviceSearchServicePlaceholder'] value="<?= htmlspecialchars($search) ?>"
+        <input type="text" name="q" placeholder="<?= htmlspecialchars($textbotlang['panel']['serviceSearchServicePlaceholder'] ?? '') ?>" value="<?= htmlspecialchars($search) ?>"
           autocomplete="off">
         <button type="button" class="search-clear">✕</button>
         <button type="submit" class="search-btn"><?= $textbotlang['panel']['serviceColDate'] ?></button>
@@ -108,11 +107,20 @@ include __DIR__ . '/inc/layout_head.php';
           $i = $offset + 1;
           foreach ($services as $s):
             $stMap = [
-              'done' => ['tag-ok', $textbotlang['panel']['serviceStatusDone']],
-              'pending' => ['tag-warn', $textbotlang['panel']['serviceStatusWaiting']],
-              'reject' => ['tag-no', $textbotlang['panel']['serviceStatusRejected']],
+              'paid' => ['tag-ok', $textbotlang['panel']['serviceStatusDone'] ?? 'پرداخت‌شده'],
+              'unpaid' => ['tag-warn', $textbotlang['panel']['serviceStatusWaiting'] ?? 'پرداخت‌نشده'],
+              // legacy aliases if any old rows exist
+              'done' => ['tag-ok', $textbotlang['panel']['serviceStatusDone'] ?? 'پرداخت‌شده'],
+              'pending' => ['tag-warn', $textbotlang['panel']['serviceStatusWaiting'] ?? 'در انتظار'],
+              'reject' => ['tag-no', $textbotlang['panel']['serviceStatusRejected'] ?? 'رد شده'],
             ];
-            [$cls, $lbl] = $stMap[$s['status'] ?? ''] ?? ['tag-plain', $s['status'] ?? '—'];
+            $rawStatus = $s['status'] ?? '';
+            if ($rawStatus === '' || $rawStatus === null) {
+              // Most extra_* inserts leave status empty after successful charge
+              [$cls, $lbl] = ['tag-ok', $textbotlang['panel']['serviceStatusDone'] ?? 'انجام‌شده'];
+            } else {
+              [$cls, $lbl] = $stMap[$rawStatus] ?? ['tag-plain', $rawStatus];
+            }
             $typeLabel = $typeMap[$s['type'] ?? ''] ?? ($s['type'] ?? '—');
             ?>
             <tr>
@@ -125,7 +133,7 @@ include __DIR__ . '/inc/layout_head.php';
               <td class="cn" style="font-size:.82rem"><?= htmlspecialchars(trunc($s['value'] ?? '—', 20)) ?></td>
               <td class="cn cs"><?= number_format((int) ($s['price'] ?? 0)) ?> <span class="cf"><?= $textbotlang['panel']['serviceDetailDate'] ?></span></td>
               <td class="cf"><?= safe_date($s['time'] ?? null, 'Y/m/d') ?></td>
-              <td><span class="tag <?= $cls ?>"><?= $lbl ?></span></td>
+              <td><span class="tag <?= $cls ?>"><?= htmlspecialchars($lbl) ?></span></td>
             </tr>
           <?php endforeach; endif; ?>
       </tbody>

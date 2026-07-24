@@ -46,7 +46,8 @@ switch ($action) {
         if ($user['User_Status'] !== 'block') {
             flash('warning', $textbotlang['panel']['userActionUserIsActive']);
         } else {
-            db_query($pdo, "UPDATE user SET User_Status = 'active' WHERE id = ?", [$id]);
+            // Bot stores Active (capital A) — lowercase breaks admin Active filters
+            db_query($pdo, "UPDATE user SET User_Status = 'Active' WHERE id = ?", [$id]);
             flash('success', sprintf($textbotlang['panel']['userActionUserUnblockedSuccess'], $id));
             error_log("Admin {$_SESSION['admin_user']} unblocked user $id");
         }
