@@ -42,6 +42,48 @@ function jdate(string $format = 'Y/m/d', ?int $ts = null): string {
     return $out;
 }
 
+function is_jalali_leap(int $jy): bool {
+    return in_array($jy % 33, [1, 5, 9, 13, 17, 22, 26, 30], true);
+}
+
+function jalali_days_in_month(int $jy, int $jm): int {
+    if ($jm <= 6) return 31;
+    if ($jm <= 11) return 30;
+    return is_jalali_leap($jy) ? 30 : 29;
+}
+
+function jalali_to_gregorian(int $jy, int $jm, int $jd): array {
+    $gy = ($jy <= 979) ? 621 : 1600;
+    $jy -= ($jy <= 979) ? 0 : 979;
+    $days = (365 * $jy) + (((int)($jy / 33)) * 8) + ((int)((($jy % 33) + 3) / 4))
+          + 78 + $jd + (($jm < 7) ? (($jm - 1) * 31) : ((($jm - 7) * 30) + 186));
+    $gy += 400 * ((int)($days / 146097));
+    $days %= 146097;
+    if ($days > 36524) {
+        $gy += 100 * ((int)(--$days / 36524));
+        $days %= 36524;
+        if ($days >= 365) $days++;
+    }
+    $gy += 4 * ((int)($days / 1461));
+    $days %= 1461;
+    if ($days > 365) {
+        $gy += (int)(($days - 1) / 365);
+        $days = ($days - 1) % 365;
+    }
+    $gd = $days + 1;
+    $sal_a = [0, 31, ((($gy % 4 === 0) && ($gy % 100 !== 0)) || ($gy % 400 === 0)) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    for ($gm = 1; $gm <= 12 && $gd > $sal_a[$gm]; $gm++) {
+        $gd -= $sal_a[$gm];
+    }
+    return [$gy, $gm, $gd];
+}
+
+/** Unix timestamp at 00:00:00 Asia/Tehran for Jalali Y/m/d */
+function jalali_day_start_ts(int $jy, int $jm, int $jd = 1): int {
+    [$gy, $gm, $gd] = jalali_to_gregorian($jy, $jm, $jd);
+    return mktime(0, 0, 0, $gm, $gd, $gy);
+}
+
 function db_query(PDO $pdo, string $sql, array $params = []): PDOStatement
 {
     $stmt = $pdo->prepare($sql);
