@@ -272,16 +272,19 @@ class ServiceMonitor
         if ($expire <= 0)
             return false;
 
-        $totalSeconds = $this->resolveServiceTotalSeconds($invoice, $expire);
-        if ($totalSeconds <= 0)
+        $timeRemaining = $expire - time();
+        if ($timeRemaining <= 0)
             return false;
 
-        $timeRemaining = $expire - time();
         $daysRemaining = max(0, intval($timeRemaining / self::SECONDS_PER_DAY));
-        // Warn at 80% of total duration used OR any point past 80% (including fully expired)
-        $elapsed = $totalSeconds - $timeRemaining;
-        $usedPercent = ($elapsed / $totalSeconds) * 100;
-        $isTimeWarning = $usedPercent >= 80 && in_array($userData['status'], ['active', 'Unknown', 'limited', 'expired']);
+        // Warn when remaining time is within admin-configured daywarn (default: 2 days)
+        $warningDays = intval($this->setting['daywarn'] ?? 2);
+        if ($warningDays < 1) {
+            $warningDays = 2;
+        }
+        $warningThreshold = $warningDays * self::SECONDS_PER_DAY;
+        $isTimeWarning = $timeRemaining <= $warningThreshold
+            && in_array($userData['status'], ['active', 'Unknown', 'limited'], true);
 
         if ($isTimeWarning) {
             $message = $this->textBotLang['hardcoded']['notifGreeting2'] .
@@ -300,26 +303,11 @@ class ServiceMonitor
                 $this->updateInvoiceStatus("time", $invoice);
                 return true;
             }
+            error_log('[NoticationsService] time warn send FAILED user=' . ($invoice['id_user'] ?? '') .
+                ' service=' . $username . ' status_cron=' . ($user['status_cron'] ?? ''));
             return false;
         }
         return false;
-    }
-
-    /**
-     * Total purchased duration in seconds (for 80% time warnings).
-     * Prefers invoice Service_time; falls back to expire - time_sell.
-     */
-    private function resolveServiceTotalSeconds($invoice, $expire)
-    {
-        $serviceDays = intval($invoice['Service_time'] ?? 0);
-        if ($serviceDays > 0) {
-            return $serviceDays * self::SECONDS_PER_DAY;
-        }
-        $soldAt = intval($invoice['time_sell'] ?? 0);
-        if ($soldAt > 0 && $expire > $soldAt) {
-            return $expire - $soldAt;
-        }
-        return 0;
     }
 
     private function send_notifactions($invoice, $user, $message, $keyboard_active, $bot_token)

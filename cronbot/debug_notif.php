@@ -113,8 +113,21 @@ if ($dataLimit <= 0) {
 $statusOk = in_array($userData['status'] ?? '', ['active', 'Unknown', 'limited'], true);
 echo "   status allowed for warn? " . ($statusOk ? 'YES' : 'NO (' . ($userData['status'] ?? '') . ')') . "\n\n";
 
+$warningDays = intval($setting['daywarn'] ?? 2);
+if ($warningDays < 1) {
+    $warningDays = 2;
+}
+$expire = intval($userData['expire'] ?? 0);
+$timeRemaining = $expire > 0 ? ($expire - time()) : 0;
+$daysRemaining = $timeRemaining > 0 ? max(0, intval($timeRemaining / 86400)) : 0;
+echo "6b) Time warning (daywarn={$warningDays}):\n";
+echo "   expire        = " . ($expire > 0 ? date('Y-m-d H:i:s', $expire) : 'unlimited/none') . "\n";
+echo "   days remaining= " . ($expire > 0 ? $daysRemaining : 'N/A') . "\n";
+$timeWarnYes = $expire > 0 && $timeRemaining > 0 && $timeRemaining <= ($warningDays * 86400) && $statusOk;
+echo "   warn at <={$warningDays} days? " . ($timeWarnYes ? 'YES' : 'NO') . "\n\n";
+
 $eligible = empty($status_cron['volume']) ? false : true;
-echo "7) Decision tree:\n";
+echo "7) Decision tree (volume):\n";
 $blockReason = null;
 if (!$eligible) {
     $blockReason = 'cron volume notifications are OFF in admin settings';
@@ -134,6 +147,19 @@ if ($blockReason) {
     echo "   BLOCKED: {$blockReason}\n";
 } else {
     echo "   SHOULD SEND volume warning now.\n";
+}
+
+echo "\n7c) Decision tree (time):\n";
+if (empty($status_cron['day'])) {
+    echo "   BLOCKED: cron day notifications are OFF\n";
+} elseif (!empty($check_send['time'])) {
+    echo "   BLOCKED: notifctions.time already true\n";
+} elseif (intval($user['status_cron'] ?? 1) == 0) {
+    echo "   BLOCKED: user.status_cron = 0\n";
+} elseif ($timeWarnYes) {
+    echo "   SHOULD SEND time warning now (<= {$warningDays} days left).\n";
+} else {
+    echo "   BLOCKED: not within daywarn window or status/expire invalid\n";
 }
 
 // SEND=1 always attempts a test Telegram message (even if cron would skip)

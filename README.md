@@ -75,7 +75,8 @@
 - ✅ روش‌های مختلف تولید نام کاربری
 - ✅ تنظیمات کانفیگ بر اساس پروتکل
 - ✅ مدیریت درگاه‌های پرداخت
-- ✅ **هشدار حجم/زمان به خود کاربر** (آستانه ۸۰٪)
+- ✅ **هشدار حجم به خود کاربر** (آستانه ۸۰٪)
+- ✅ **هشدار اتمام اعتبار به خود کاربر** (پیش‌فرض: ۲ روز مانده — قابل تنظیم با `daywarn`)
 - ✅ **گزارش مالی در وب‌پنل ادمین** (فروش + تمدید + حجم/زمان اضافه)
 
 ---
@@ -132,7 +133,7 @@ Settings → Security → API Token → Generate
 | نوع | شرط |
 |-----|------|
 | هشدار حجم | مصرف ≥ **۸۰٪** کل حجم |
-| هشدار زمان | گذشت ≥ **۸۰٪** از مدت سرویس |
+| هشدار زمان | باقی‌مانده ≤ **`daywarn` روز** (پیش‌فرض **۲ روز**) |
 
 #### رفتار مهم
 - پیام فقط وقتی ارسال‌شده علامت می‌خورد که تلگرام واقعاً `ok` برگرداند
@@ -315,7 +316,8 @@ Two editions are available:
 - ✅ Multiple username generation methods
 - ✅ Protocol-based config settings
 - ✅ Payment gateway management
-- ✅ **Volume/time warnings sent to the buyer** (80% threshold)
+- ✅ **Volume warnings sent to the buyer** (80% threshold)
+- ✅ **Expiry warnings sent to the buyer** (default: 2 days left — configurable via `daywarn`)
 - ✅ **Finance report in the admin web panel** (sales + renewals + extras)
 
 ---
@@ -379,7 +381,7 @@ When viewing the subscription link, the bot reads `invoice.uuid` directly — no
 | Type | Trigger |
 |------|---------|
 | Volume warning | Used traffic ≥ **80%** of limit |
-| Time warning | Elapsed ≥ **80%** of purchased duration |
+| Time warning | Remaining time ≤ **`daywarn` days** (default **2**) |
 
 #### Behavior
 - The invoice is marked as notified only after Telegram returns `ok`
