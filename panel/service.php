@@ -19,7 +19,12 @@ if ($search !== '') {
   $where[] = "(id_user LIKE ? OR COALESCE(username,'') LIKE ? OR COALESCE(type,'') LIKE ?)";
   $params = ["%$search%", "%$search%", "%$search%"];
 }
-if ($status !== '') {
+if ($status === 'paid') {
+  // Empty/null status = charged successfully in most bot flows
+  $where[] = "(status IS NULL OR status = '' OR LOWER(status) IN ('paid','done'))";
+} elseif ($status === 'unpaid') {
+  $where[] = "LOWER(status) = 'unpaid'";
+} elseif ($status !== '') {
   $where[] = "status = ?";
   $params[] = $status;
 }

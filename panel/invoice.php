@@ -39,6 +39,13 @@ $statusMap = [
   'end_of_volume' => ['tag-no', $textbotlang['panel']['invoiceNotifVolumeExpire']],
   'sendedwarn' => ['tag-warn', $textbotlang['panel']['invoiceNotifAllSent']],
   'send_on_hold' => ['tag-plain', $textbotlang['panel']['invoiceNotifNotConnectedSent']],
+  'removeTime' => ['tag-warn', 'حذف به‌خاطر اتمام زمان'],
+  'removevolume' => ['tag-no', 'حذف به‌خاطر اتمام حجم'],
+  'removebyadmin' => ['tag-no', 'حذف توسط ادمین'],
+  'removedbyadmin' => ['tag-no', 'حذف توسط ادمین'],
+  'removebyuser' => ['tag-plain', 'حذف توسط کاربر'],
+  'disabled' => ['tag-plain', 'غیرفعال'],
+  'disablebyadmin' => ['tag-no', 'غیرفعال توسط ادمین'],
   'unpaid' => ['tag-plain', $textbotlang['panel']['invoiceStatusUnpaid']],
   'Unsuccessful' => ['tag-plain', $textbotlang['panel']['invoiceDataFetchError']],
 ];

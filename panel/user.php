@@ -72,16 +72,48 @@ try {
 
 $balance = (int) ($user['Balance'] ?? 0);
 $TEST_NAME = $textbotlang['Admin']['adminphp']['db_test_service_name'] ?? 'سرویس تست';
-$PAID_INV = ['active', 'end_of_time', 'end_of_volume', 'sendedwarn', 'send_on_hold', 'removeTime', 'removevolume'];
-$totalSpent = array_sum(array_map(function ($inv) use ($PAID_INV, $TEST_NAME) {
-    if (($inv['name_product'] ?? '') === $TEST_NAME) return 0;
-    if (!in_array($inv['Status'] ?? '', $PAID_INV, true)) return 0;
-    return (int) ($inv['price_product'] ?? 0);
-}, $invoices));
-$activeServices = count(array_filter($invoices, fn($inv) => ($inv['Status'] ?? '') === 'active' && ($inv['name_product'] ?? '') !== $TEST_NAME));
-$expiredServices = count(array_filter($invoices, fn($inv) => in_array($inv['Status'] ?? '', ['end_of_time', 'end_of_volume', 'expired'], true)));
-$paidCount = count(array_filter($payments, fn($p) => in_array($p['payment_Status'] ?? '', ['paid', 'success'], true)));
-$convRate = count($payments) > 0 ? round($paidCount / count($payments) * 100) : 0;
+
+// Aggregates from ALL invoices/payments (not just LIMIT 30/20 list rows)
+$totalSpent = 0;
+$activeServices = 0;
+$expiredServices = 0;
+$invoiceTotalCount = 0;
+try {
+    $agg = db_fetch($pdo,
+        "SELECT
+            COALESCE(SUM(CASE
+                WHEN LOWER(COALESCE(Status,'')) NOT IN ('unpaid','unsuccessful')
+                     AND name_product != ?
+                     AND CAST(price_product AS SIGNED) > 0
+                THEN CAST(price_product AS SIGNED) ELSE 0 END), 0) AS spent,
+            COALESCE(SUM(CASE WHEN Status = 'active' AND name_product != ? THEN 1 ELSE 0 END), 0) AS active_cnt,
+            COALESCE(SUM(CASE WHEN Status IN ('end_of_time','end_of_volume') AND name_product != ? THEN 1 ELSE 0 END), 0) AS expired_cnt,
+            COUNT(*) AS total_cnt
+         FROM invoice WHERE id_user = ?",
+        [$TEST_NAME, $TEST_NAME, $TEST_NAME, (string)$id]
+    );
+    $totalSpent = (int)($agg['spent'] ?? 0);
+    $activeServices = (int)($agg['active_cnt'] ?? 0);
+    $expiredServices = (int)($agg['expired_cnt'] ?? 0);
+    $invoiceTotalCount = (int)($agg['total_cnt'] ?? 0);
+} catch (Exception $e) {
+}
+
+$paidCount = 0;
+$paymentTotalCount = 0;
+try {
+    $pAgg = db_fetch($pdo,
+        "SELECT
+            COALESCE(SUM(CASE WHEN payment_Status = 'paid' THEN 1 ELSE 0 END), 0) AS paid_cnt,
+            COUNT(*) AS total_cnt
+         FROM Payment_report WHERE id_user = ?",
+        [(string)$id]
+    );
+    $paidCount = (int)($pAgg['paid_cnt'] ?? 0);
+    $paymentTotalCount = (int)($pAgg['total_cnt'] ?? 0);
+} catch (Exception $e) {
+}
+$convRate = $paymentTotalCount > 0 ? round($paidCount / $paymentTotalCount * 100) : 0;
 
 $agent = $user['agent'] ?? 'f';
 $isBlocked = ($user['User_Status'] ?? '') === 'block';
@@ -123,7 +155,7 @@ include __DIR__ . '/inc/layout_head.php';
                 ? number_format($totalSpent / 1_000_000, 1) . $textbotlang['panel']['userUnitMillionToman']
                 : number_format($totalSpent) . $textbotlang['panel']['userUnitToman'] ?>
         </div>
-        <div class="stat-meta"><?= count($invoices) ?> <?= $textbotlang['panel']['userGroupLabel'] ?></div>
+        <div class="stat-meta"><?= number_format($invoiceTotalCount) ?> <?= $textbotlang['panel']['userGroupLabel'] ?></div>
     </div>
     <div class="stat warn fade-up d2">
         <div class="stat-label"><?= $textbotlang['panel']['userStatusLabel'] ?></div>
@@ -133,7 +165,7 @@ include __DIR__ . '/inc/layout_head.php';
     <div class="stat fade-up d3">
         <div class="stat-label"><?= $textbotlang['panel']['userCustomNameLabel'] ?></div>
         <div class="stat-num"><?= $convRate ?>%</div>
-        <div class="stat-meta"><?= $paidCount ?> <?= $textbotlang['panel']['userPhoneLabel'] ?> <?= count($payments) ?></div>
+        <div class="stat-meta"><?= $paidCount ?> <?= $textbotlang['panel']['userPhoneLabel'] ?> <?= $paymentTotalCount ?></div>
     </div>
 </div>
 
@@ -320,6 +352,11 @@ include __DIR__ . '/inc/layout_head.php';
                                     'unpaid' => ['tag-plain', $textbotlang['panel']['userStatusUnpaid']],
                                     'removeTime' => ['tag-no', 'حذف‌شده (زمان)'],
                                     'removevolume' => ['tag-no', 'حذف‌شده (حجم)'],
+                                    'removebyadmin' => ['tag-no', 'حذف توسط ادمین'],
+                                    'removedbyadmin' => ['tag-no', 'حذف توسط ادمین'],
+                                    'removebyuser' => ['tag-plain', 'حذف توسط کاربر'],
+                                    'disabled' => ['tag-plain', 'غیرفعال'],
+                                    'disablebyadmin' => ['tag-no', 'غیرفعال توسط ادمین'],
                                 ];
                                 foreach ($invoices as $inv):
                                     [$tagClass, $label] = $statusMap[$inv['Status'] ?? ''] ?? ['tag-plain', $inv['Status'] ?? '—'];

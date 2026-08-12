@@ -7,8 +7,8 @@ date_default_timezone_set('Asia/Tehran');
 
 $TEST_NAME = $textbotlang['Admin']['adminphp']['db_test_service_name'] ?? 'سرویس تست';
 
-// Paid service statuses (aligned with bot reports; exclude unpaid/disabled/admin-removed)
-$PAID_STATUSES = "Status IN ('active','end_of_time','end_of_volume','sendedwarn','send_on_hold','removeTime','removevolume')";
+// Paid = money received. Keep remove*/disabled (sold then removed). Skip unpaid drafts & failed.
+$PAID_STATUSES = "LOWER(COALESCE(Status,'')) NOT IN ('unpaid','unsuccessful')";
 $NOT_TEST = "name_product != " . $pdo->quote($TEST_NAME);
 
 // Extra services that generate real revenue (renew / volume / time)
@@ -30,16 +30,7 @@ function fin_fmts(int $v): string {
     return number_format($v) . ' ت';
 }
 function fin_parse_ts($raw): int {
-    if ($raw === null || $raw === '') return 0;
-    if (is_numeric($raw)) {
-        $n = (int)$raw;
-        // Heuristic: unix seconds vs milliseconds
-        if ($n > 1_000_000_000_000) return (int)floor($n / 1000);
-        if ($n > 1_000_000) return $n;
-        return 0;
-    }
-    $ts = strtotime(str_replace('/', '-', (string)$raw));
-    return $ts !== false ? $ts : 0;
+    return parse_panel_ts($raw);
 }
 /** Last N Jalali month keys ending with current month (oldest → newest) */
 function fin_month_keys(int $count): array {
@@ -111,7 +102,7 @@ try {
     foreach ($rows as $row) {
         $ts  = fin_parse_ts($row['time_sell']);
         $rev = (int)$row['price_product'];
-        if ($ts < 1 || $rev < 0) continue;
+        if ($ts < 1 || $rev <= 0) continue; // skip free/zero (tests already excluded)
         $key = jdate('Y/m', $ts);
         if (!isset($monthlyData[$key])) {
             $monthlyData[$key] = ['rev' => 0, 'count' => 0, 'sales' => 0, 'extend' => 0, 'extra' => 0];
@@ -180,39 +171,23 @@ $lastRev  = $monthlyData[$lastMonthKey]['rev']   ?? 0;
 $lastCnt  = $monthlyData[$lastMonthKey]['count'] ?? 0;
 
 $yearRev = 0; $yearCnt = 0;
+$thisYearStr = (string)$thisYear;
 foreach ($monthlyData as $k => $d) {
-    if (substr($k, 0, 4) === $thisYear) {
+    if (substr((string)$k, 0, 4) === $thisYearStr) {
         $yearRev += $d['rev'];
         $yearCnt += $d['count'];
     }
 }
 
-$allTimeRev = 0; $allTimeCnt = 0;
-$allSales = 0; $allExtend = 0; $allExtra = 0;
-try {
-    $allSales = (int)db_query($pdo,
-        "SELECT COALESCE(SUM(CAST(price_product AS SIGNED)),0) FROM invoice WHERE $PAID_STATUSES AND $NOT_TEST"
-    )->fetchColumn();
-    $allSalesCnt = (int)db_query($pdo,
-        "SELECT COUNT(*) FROM invoice WHERE $PAID_STATUSES AND $NOT_TEST"
-    )->fetchColumn();
-} catch (Exception $e) { $allSalesCnt = 0; }
-try {
-    $allExtend = (int)db_query($pdo,
-        "SELECT COALESCE(SUM(CAST(price AS SIGNED)),0) FROM service_other
-         WHERE type = 'extend_user' AND $OTHER_PAID"
-    )->fetchColumn();
-    $allExtra = (int)db_query($pdo,
-        "SELECT COALESCE(SUM(CAST(price AS SIGNED)),0) FROM service_other
-         WHERE type IN ('extra_user','extra_time_user') AND $OTHER_PAID"
-    )->fetchColumn();
-    $allOtherCnt = (int)db_query($pdo,
-        "SELECT COUNT(*) FROM service_other WHERE $OTHER_TYPES AND $OTHER_PAID AND CAST(price AS SIGNED) > 0"
-    )->fetchColumn();
-} catch (Exception $e) { $allOtherCnt = 0; }
-
+// All-time from same PHP buckets as charts (includes months older than the 24 prefilled keys)
+$allSales = 0; $allExtend = 0; $allExtra = 0; $allTimeCnt = 0;
+foreach ($monthlyData as $d) {
+    $allSales   += (int)$d['sales'];
+    $allExtend  += (int)$d['extend'];
+    $allExtra   += (int)$d['extra'];
+    $allTimeCnt += (int)$d['count'];
+}
 $allTimeRev = $allSales + $allExtend + $allExtra;
-$allTimeCnt = $allSalesCnt + $allOtherCnt;
 
 $growth = ($lastRev > 0) ? round(($thisRev - $lastRev) / $lastRev * 100, 1) : null;
 
@@ -235,11 +210,12 @@ try {
     );
     foreach ($invRows as $r) {
         $ts = fin_parse_ts($r['time_sell']);
-        if ($ts < $monthStartTs) continue;
+        $rev = (int)$r['price_product'];
+        if ($ts < $monthStartTs || $rev <= 0) continue;
         $name = $r['name_product'] ?? '—';
         if (!isset($prodAgg[$name])) $prodAgg[$name] = ['name_product' => $name, 'cnt' => 0, 'rev' => 0];
         $prodAgg[$name]['cnt']++;
-        $prodAgg[$name]['rev'] += (int)$r['price_product'];
+        $prodAgg[$name]['rev'] += $rev;
     }
     usort($prodAgg, fn($a, $b) => $b['rev'] <=> $a['rev']);
     $topProducts = array_slice(array_values($prodAgg), 0, 8);

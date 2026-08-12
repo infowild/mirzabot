@@ -8,8 +8,11 @@ date_default_timezone_set('Asia/Tehran');
 // Panel UI language strings (loaded from lang/fa.php via languagechange())
 $textbotlang = languagechange();
 
+function is_jalali_leap(int $jy): bool {
+    return in_array($jy % 33, [1, 5, 9, 13, 17, 22, 26, 30], true);
+}
+
 function gregorian_to_jalali(int $gy, int $gm, int $gd): array {
-    $jdim = [31, 31, 31, 31, 31, 31, 30, 30, 30, 30, 30, 29];
     $g    = $gy - 1600;
     $gdn  = 365 * $g + (int)(($g + 3) / 4) - (int)(($g + 99) / 100) + (int)(($g + 399) / 400);
     $gml  = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
@@ -20,6 +23,7 @@ function gregorian_to_jalali(int $gy, int $gm, int $gd): array {
     $jnp  = (int)($jdn / 12053); $jdn %= 12053;
     $jy   = 979 + 33 * $jnp + 4 * (int)($jdn / 1461); $jdn %= 1461;
     if ($jdn >= 366) { $jy += (int)(($jdn - 1) / 365); $jdn = ($jdn - 1) % 365; }
+    $jdim = [31, 31, 31, 31, 31, 31, 30, 30, 30, 30, 30, is_jalali_leap($jy) ? 30 : 29];
     for ($i = 0; $i < 11 && $jdn >= $jdim[$i]; $i++) $jdn -= $jdim[$i];
     return [$jy, $i + 1, $jdn + 1];
 }
@@ -40,10 +44,6 @@ function jdate(string $format = 'Y/m/d', ?int $ts = null): string {
         };
     }
     return $out;
-}
-
-function is_jalali_leap(int $jy): bool {
-    return in_array($jy % 33, [1, 5, 9, 13, 17, 22, 26, 30], true);
 }
 
 function jalali_days_in_month(int $jy, int $jm): int {
@@ -181,27 +181,39 @@ function trunc(string $str, int $max = 30): string
         : $str;
 }
 
-function safe_date($ts, string $fmt = 'Y/m/d'): string
+/** Parse panel timestamps: unix seconds/ms or 'Y/m/d H:i:s' strings. */
+function parse_panel_ts($raw): int
 {
-    if ($ts === null || $ts === '' || $ts === false) {
-        return '—';
+    if ($raw === null || $raw === '' || $raw === false) {
+        return 0;
     }
-    if (is_numeric($ts)) {
-        $n = (int) $ts;
+    if (is_numeric($raw)) {
+        $n = (int) $raw;
         if ($n > 1_000_000_000_000) {
-            $n = (int) floor($n / 1000);
+            return (int) floor($n / 1000);
         }
         if ($n > 1_000_000) {
-            return date($fmt, $n);
+            return $n;
+        }
+        return 0;
+    }
+    $parsed = strtotime(str_replace('/', '-', trim((string) $raw)));
+    return $parsed !== false ? $parsed : 0;
+}
+
+function safe_date($ts, string $fmt = 'Y/m/d'): string
+{
+    $n = parse_panel_ts($ts);
+    if ($n < 1) {
+        if ($ts === null || $ts === '' || $ts === false) {
+            return '—';
+        }
+        if (!is_numeric($ts)) {
+            return htmlspecialchars((string) $ts);
         }
         return '—';
     }
-    // Payment_report / service_other store 'Y/m/d H:i:s'
-    $parsed = strtotime(str_replace('/', '-', (string) $ts));
-    if ($parsed !== false) {
-        return date($fmt, $parsed);
-    }
-    return htmlspecialchars((string) $ts);
+    return date($fmt, $n);
 }
 function check_login_rate(string $ip): bool
 {

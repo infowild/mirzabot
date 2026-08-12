@@ -39,8 +39,11 @@ $REAL_PAY = "Payment_Method NOT IN ('add balance by admin','low balance by admin
 $todayPayStart = date('Y/m/d') . ' 00:00:00';
 try {
   $totalSuccess = (int) db_query($pdo, "SELECT COALESCE(SUM(CAST(price AS SIGNED)),0) FROM Payment_report WHERE payment_Status ='paid' AND $REAL_PAY")->fetchColumn();
-  // Payment_report.time is 'Y/m/d H:i:s' string — not unix timestamp
-  $todayCount = db_count($pdo, "SELECT COUNT(*) FROM Payment_report WHERE time >= ?", [$todayPayStart]);
+  $todayCount = db_count($pdo,
+    "SELECT COUNT(*) FROM Payment_report
+     WHERE payment_Status='paid' AND $REAL_PAY AND time >= ?",
+    [$todayPayStart]
+  );
 } catch (Exception $e) {
 }
 

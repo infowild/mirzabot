@@ -11,9 +11,13 @@ $weeklyRevenue = $panelsList = $recentInvoices = $recentUsers = [];
 
 $TEST_NAME = $textbotlang['Admin']['adminphp']['db_test_service_name'] ?? 'سرویس تست';
 $NOT_TEST  = 'name_product != ' . $pdo->quote($TEST_NAME);
-$PAID = "Status IN ('active','end_of_time','end_of_volume','sendedwarn','send_on_hold','removeTime','removevolume') AND $NOT_TEST";
+// Include sold-then-removed statuses so revenue matches finance report
+$PAID = "LOWER(COALESCE(Status,'')) NOT IN ('unpaid','unsuccessful') AND $NOT_TEST";
+$OTHER_TYPES = "type IN ('extend_user','extra_user','extra_time_user')";
+$OTHER_PAID  = "(status IS NULL OR status = '' OR LOWER(status) != 'unpaid')";
 $todayUnix = strtotime('today');
 $todayPayStart = date('Y/m/d') . ' 00:00:00';
+$REAL_PAY = "Payment_Method NOT IN ('add balance by admin','low balance by admin')";
 
 try {
     $totalUsers   = db_count($pdo, "SELECT COUNT(*) FROM user");
@@ -22,31 +26,57 @@ try {
 } catch (Exception $e) {}
 
 try {
-    $totalRevenue    = (int) db_query($pdo, "SELECT COALESCE(SUM(CAST(price_product AS SIGNED)),0) FROM invoice WHERE $PAID")->fetchColumn();
-    $todayRevenue    = (int) db_query($pdo, "SELECT COALESCE(SUM(CAST(price_product AS SIGNED)),0) FROM invoice WHERE CAST(time_sell AS UNSIGNED) > ? AND $PAID", [$todayUnix])->fetchColumn();
     $activeNow       = db_count($pdo, "SELECT COUNT(*) FROM invoice WHERE Status='active' AND $NOT_TEST");
     $expiredServices = db_count($pdo, "SELECT COUNT(*) FROM invoice WHERE Status IN ('end_of_time','end_of_volume') AND $NOT_TEST");
 } catch (Exception $e) {}
 
+// Revenue: parse mixed time_sell formats in PHP (unix or date string)
 try {
-    $pendingPay = db_count($pdo, "SELECT COUNT(*) FROM Payment_report WHERE payment_Status='waiting'");
-    // Payment_report.time is stored as 'Y/m/d H:i:s' string — not unix
-    $txToday    = db_count($pdo, "SELECT COUNT(*) FROM Payment_report WHERE time >= ?", [$todayPayStart]);
-} catch (Exception $e) {}
-
-try { $totalPanels = db_count($pdo, "SELECT COUNT(*) FROM marzban_panel"); } catch (Exception $e) {}
-
-try {
+    $weeklyMap = [];
     for ($i = 6; $i >= 0; $i--) {
         $ds = mktime(0, 0, 0, (int)date('n'), (int)date('j') - $i, (int)date('Y'));
-        $de = $ds + 86399;
+        $weeklyMap[$ds] = 0;
+    }
+    $invRows = db_fetchAll($pdo,
+        "SELECT time_sell, price_product FROM invoice
+         WHERE $PAID AND CAST(price_product AS SIGNED) > 0
+           AND time_sell IS NOT NULL AND time_sell != '' AND time_sell != '0'"
+    );
+    foreach ($invRows as $row) {
+        $rev = (int)$row['price_product'];
+        if ($rev <= 0) continue;
+        $ts = parse_panel_ts($row['time_sell']);
+        if ($ts < 1) continue;
+        $totalRevenue += $rev;
+        if ($ts >= $todayUnix) $todayRevenue += $rev;
+        $dayStart = mktime(0, 0, 0, (int)date('n', $ts), (int)date('j', $ts), (int)date('Y', $ts));
+        if (array_key_exists($dayStart, $weeklyMap)) {
+            $weeklyMap[$dayStart] += $rev;
+        }
+    }
+    try {
+        $otherRows = db_fetchAll($pdo,
+            "SELECT time, price FROM service_other
+             WHERE $OTHER_TYPES AND $OTHER_PAID AND CAST(price AS SIGNED) > 0"
+        );
+        foreach ($otherRows as $row) {
+            $rev = (int)$row['price'];
+            if ($rev <= 0) continue;
+            $ts = parse_panel_ts($row['time']);
+            if ($ts < 1) continue;
+            $totalRevenue += $rev;
+            if ($ts >= $todayUnix) $todayRevenue += $rev;
+            $dayStart = mktime(0, 0, 0, (int)date('n', $ts), (int)date('j', $ts), (int)date('Y', $ts));
+            if (array_key_exists($dayStart, $weeklyMap)) {
+                $weeklyMap[$dayStart] += $rev;
+            }
+        }
+    } catch (Exception $e) {}
+    foreach ($weeklyMap as $ds => $rev) {
         $weeklyRevenue[] = [
             'label' => jdate('j/n', $ds),
-            'rev'   => (int) db_query($pdo,
-                "SELECT COALESCE(SUM(price_product),0) FROM invoice WHERE time_sell BETWEEN ? AND ? AND $PAID",
-                [$ds, $de]
-            )->fetchColumn(),
-            'today' => ($i === 0),
+            'rev'   => $rev,
+            'today' => ($ds === $todayUnix),
         ];
     }
 } catch (Exception $e) {
@@ -55,6 +85,17 @@ try {
         $weeklyRevenue[] = ['label' => jdate('j/n', $ds), 'rev' => 0, 'today' => ($i === 6)];
     }
 }
+
+try {
+    $pendingPay = db_count($pdo, "SELECT COUNT(*) FROM Payment_report WHERE payment_Status='waiting'");
+    $txToday    = db_count($pdo,
+        "SELECT COUNT(*) FROM Payment_report
+         WHERE payment_Status='paid' AND $REAL_PAY AND time >= ?",
+        [$todayPayStart]
+    );
+} catch (Exception $e) {}
+
+try { $totalPanels = db_count($pdo, "SELECT COUNT(*) FROM marzban_panel"); } catch (Exception $e) {}
 
 try { $panelsList     = db_fetchAll($pdo, "SELECT id, name_panel, url_panel, type FROM marzban_panel ORDER BY id ASC LIMIT 12"); } catch (Exception $e) {}
 try { $recentInvoices = db_fetchAll($pdo, "SELECT * FROM invoice ORDER BY time_sell DESC LIMIT 8"); } catch (Exception $e) {}
@@ -414,6 +455,11 @@ function fmtS(int $v): string {
                 'end_of_volume' => ['tag-no',    $textbotlang['panel']['dashStatusVolumeFinished']],
                 'sendedwarn'    => ['tag-warn',  $textbotlang['panel']['dashStatusWarning']],
                 'send_on_hold'  => ['tag-plain', $textbotlang['panel']['dashStatusWaiting']],
+                'removeTime'    => ['tag-warn',  'حذف (زمان)'],
+                'removevolume'  => ['tag-no',    'حذف (حجم)'],
+                'removebyadmin' => ['tag-no',    'حذف ادمین'],
+                'removedbyadmin'=> ['tag-no',    'حذف ادمین'],
+                'unpaid'        => ['tag-plain', 'پرداخت‌نشده'],
             ];
             foreach ($recentInvoices as $inv):
                 [$tagClass, $label] = $statusMap[$inv['Status'] ?? ''] ?? ['tag-plain', $inv['Status'] ?? '—'];
