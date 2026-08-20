@@ -435,6 +435,10 @@ Default code path: `/var/www/mirzabot`
 
 The installer generates a separate Admin API token and prints it once at the end. Store it securely; the Telegram bot token is never accepted as an Admin API credential. Cron jobs are installed in `/etc/cron.d/mirzabot` with per-job locks.
 
+MirzaBot's Apache instance listens only on HTTPS port `8443`; it never binds ports `80` or `443`. The public panel and webhook URL therefore use `https://your-domain.example:8443/`. Telegram officially supports port `8443` for webhooks. TLS certificates are obtained using a DNS challenge, so certificate issuance and renewal do not require port `80`. If no DNS provider automation is configured, renewal requires manually updating the `_acme-challenge` TXT record.
+
+The installer disables `certbot.timer` to prevent a previously configured Apache/HTTP challenge from attempting port `80`. Renew manually with `certbot certonly --manual --preferred-challenges dns --cert-name your-domain.example --force-renewal -d your-domain.example`, then reload Apache.
+
 ---
 
 ### 🔄 Updating

@@ -51,6 +51,7 @@ if [[ -f "$APP_DIR/config.php" ]]; then
   DOMAIN="${DOMAIN#https://}"
   DOMAIN="${DOMAIN#http://}"
   DOMAIN="${DOMAIN%%/*}"
+  DOMAIN="${DOMAIN%%:*}"
 fi
 
 rm -f /etc/cron.d/mirzabot

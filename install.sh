@@ -2,6 +2,8 @@
 
 set -Eeuo pipefail
 
+HTTPS_PORT=8443
+
 echo "==== Mirza Bot Auto Installer ===="
 
 if [ "$(id -u)" -ne 0 ]; then
@@ -30,9 +32,11 @@ read -p "Bot username without @ (example: my_mirza_bot): " BOT_USERNAME
 [[ "$DOMAIN" =~ ^[A-Za-z0-9.-]+$ ]] || { echo "Invalid domain."; exit 1; }
 [[ "$DB_NAME" =~ ^[A-Za-z0-9_]+$ ]] || { echo "Invalid database name."; exit 1; }
 [[ "$DB_USER" =~ ^[A-Za-z0-9_]+$ ]] || { echo "Invalid database username."; exit 1; }
+PUBLIC_HOST="$DOMAIN:$HTTPS_PORT"
 
 echo ""
 echo "Domain:       $DOMAIN"
+echo "HTTPS port:   $HTTPS_PORT (ports 80 and 443 are not used by MirzaBot)"
 echo "Email:        $EMAIL"
 echo "Database:     $DB_NAME / $DB_USER"
 echo "Bot username: @$BOT_USERNAME"
@@ -47,6 +51,10 @@ fi
 
 ### 2. Update system & install Apache, PHP, MySQL, etc.
 echo "==> Updating system & installing Apache, PHP 8.2, MySQL, git, certbot ..."
+# Prevent upgrades or package installation from auto-starting Apache on port 80.
+systemctl stop apache2.service 2>/dev/null || true
+systemctl mask apache2.service 2>/dev/null || true
+
 apt update && apt upgrade -y
 
 apt install -y apache2 mysql-server git software-properties-common curl
@@ -59,11 +67,10 @@ apt install -y \
   php8.2-cli php8.2-common php8.2-mbstring php8.2-curl \
   php8.2-xml php8.2-zip php8.2-mysql php8.2-gd php8.2-bcmath
 
-apt install -y certbot python3-certbot-apache
+apt install -y certbot
 
 a2dismod php7.4 php8.0 php8.1 2>/dev/null || true
-a2enmod php8.2 rewrite
-systemctl restart apache2
+a2enmod php8.2 rewrite ssl
 
 echo "==> Current PHP version:"
 php -v || true
@@ -93,30 +100,20 @@ fi
 cd /var/www/mirzabot
 chown -R www-data:www-data /var/www/mirzabot
 
-### 5. Create Apache VirtualHost
-echo "==> Creating Apache VirtualHost ..."
-cat >/etc/apache2/sites-available/mirzabot.conf <<EOF
-<VirtualHost *:80>
-    ServerName $DOMAIN
-    DocumentRoot /var/www/mirzabot
-
-    <Directory /var/www/mirzabot>
-        AllowOverride All
-        Require all granted
-    </Directory>
-
-    <Directory /var/www/mirzabot/cronbot>
-        Require all denied
-    </Directory>
-
-    ErrorLog \${APACHE_LOG_DIR}/mirzabot_error.log
-    CustomLog \${APACHE_LOG_DIR}/mirzabot_access.log combined
-</VirtualHost>
+### 5. Configure Apache to use only TLS port 8443
+echo "==> Reserving Apache port $HTTPS_PORT (ports 80/443 remain unused) ..."
+if [ -f /etc/apache2/ports.conf ] && [ ! -f /etc/apache2/ports.conf.mirzabot.bak ]; then
+  cp /etc/apache2/ports.conf /etc/apache2/ports.conf.mirzabot.bak
+fi
+cat >/etc/apache2/ports.conf <<EOF
+Listen $HTTPS_PORT
 EOF
 
-a2ensite mirzabot.conf
-a2dissite 000-default.conf 2>/dev/null || true
-systemctl reload apache2
+a2dissite 000-default.conf default-ssl.conf mirzabot.conf mirzabot-le-ssl.conf 2>/dev/null || true
+cat >/etc/apache2/conf-available/mirzabot-servername.conf <<EOF
+ServerName $DOMAIN
+EOF
+a2enconf mirzabot-servername
 
 ### 6. Write config.php
 echo "==> Writing config.php ..."
@@ -151,7 +148,7 @@ mysqli_set_charset(\$connect, "utf8mb4");
 \$ADMIN_API_TOKEN = '$ADMIN_API_TOKEN';
 \$tls_ca_bundle = getenv('MIRZABOT_CA_BUNDLE') ?: null;
 \$adminnumber = '$ADMIN_ID';
-\$domainhosts = '$DOMAIN';
+\$domainhosts = '$PUBLIC_HOST';
 \$usernamebot = '$BOT_USERNAME';
 
 function configureCurlTls(\$handle): void
@@ -181,32 +178,80 @@ if [ $? -ne 0 ]; then
   echo "[WARNING] table.php returned an error. Check /var/www/mirzabot/error_log"
 fi
 
-### 8. SSL via Certbot
-echo "==> Obtaining SSL certificate ..."
-HTTPS_LISTENER="$(ss -H -ltnp 'sport = :443' 2>/dev/null || true)"
+### 8. TLS on port 8443; DNS-01 never uses ports 80/443
+echo "==> Configuring TLS on port $HTTPS_PORT ..."
+HTTPS_LISTENER="$(ss -H -ltnp "sport = :$HTTPS_PORT" 2>/dev/null || true)"
 if [[ -n "$HTTPS_LISTENER" && "$HTTPS_LISTENER" != *apache2* ]]; then
-  echo "[ERROR] TCP port 443 is already owned by another service:"
+  echo "[ERROR] TCP port $HTTPS_PORT is already owned by another service:"
   echo "$HTTPS_LISTENER"
-  echo "Stop or reconfigure that service, then run the installer again. No webhook was configured."
   exit 1
 fi
 
-if ! certbot --apache -d "$DOMAIN" -m "$EMAIL" --agree-tos --redirect --non-interactive; then
-  echo "[ERROR] Certbot could not deploy the certificate."
-  echo "Inspect: ss -ltnp 'sport = :443' and journalctl -u apache2 -n 100 --no-pager"
-  exit 1
+CERT_DIR="/etc/letsencrypt/live/$DOMAIN"
+if [[ ! -s "$CERT_DIR/fullchain.pem" || ! -s "$CERT_DIR/privkey.pem" ]]; then
+  echo "No existing certificate was found. Certbot will request a DNS TXT record."
+  echo "Add the requested _acme-challenge TXT record in the ParsPack DNS panel, then continue."
+  certbot certonly --manual --preferred-challenges dns \
+    --email "$EMAIL" --agree-tos --no-eff-email -d "$DOMAIN"
 fi
 
+[[ -s "$CERT_DIR/fullchain.pem" && -s "$CERT_DIR/privkey.pem" ]] || {
+  echo "[ERROR] TLS certificate files were not created."
+  exit 1
+}
+
+cat >/etc/apache2/sites-available/mirzabot.conf <<EOF
+<IfModule mod_ssl.c>
+<VirtualHost *:$HTTPS_PORT>
+    ServerName $DOMAIN
+    DocumentRoot /var/www/mirzabot
+
+    <Directory /var/www/mirzabot>
+        AllowOverride All
+        Require all granted
+    </Directory>
+
+    <Directory /var/www/mirzabot/cronbot>
+        Require all denied
+    </Directory>
+
+    SSLEngine on
+    SSLCertificateFile $CERT_DIR/fullchain.pem
+    SSLCertificateKeyFile $CERT_DIR/privkey.pem
+    ErrorLog \${APACHE_LOG_DIR}/mirzabot_error.log
+    CustomLog \${APACHE_LOG_DIR}/mirzabot_access.log combined
+</VirtualHost>
+</IfModule>
+EOF
+
+a2ensite mirzabot.conf
 apache2ctl configtest
+systemctl unmask apache2.service
+systemctl daemon-reload
 systemctl restart apache2
 if ! systemctl is-active --quiet apache2; then
   echo "[ERROR] Apache is not active after certificate deployment; webhook setup was skipped."
   exit 1
 fi
 
+# Automated Apache/HTTP challenges could attempt to use port 80. Renewal is DNS-only.
+systemctl disable --now certbot.timer 2>/dev/null || true
+
+if command -v ufw >/dev/null 2>&1 && ufw status | grep -q '^Status: active'; then
+  ufw allow "$HTTPS_PORT/tcp"
+fi
+
+FORBIDDEN_APACHE_LISTENERS="$(ss -H -ltnp '( sport = :80 or sport = :443 )' 2>/dev/null | grep apache2 || true)"
+if [[ -n "$FORBIDDEN_APACHE_LISTENERS" ]]; then
+  echo "[ERROR] Apache unexpectedly opened a forbidden port:"
+  echo "$FORBIDDEN_APACHE_LISTENERS"
+  systemctl stop apache2
+  exit 1
+fi
+
 ### 9. Telegram Webhook
 echo "==> Setting Telegram webhook ..."
-WEBHOOK_URL="https://$DOMAIN/index.php"
+WEBHOOK_URL="https://$PUBLIC_HOST/index.php"
 curl -s "https://api.telegram.org/bot$BOT_TOKEN/deleteWebhook" >/dev/null 2>&1 || true
 
 WEBHOOK_RESULT=$(curl --fail --silent --show-error --get \
@@ -247,7 +292,9 @@ echo ""
 echo "===== Installation FINISHED Successfully ====="
 echo "Now go to Telegram and send /start to @$BOT_USERNAME"
 echo ""
-echo "Panel URL:  https://$DOMAIN"
+echo "Panel URL:  https://$PUBLIC_HOST"
+echo "Certificate renewal must use a DNS challenge; do not use the Apache/HTTP challenge."
+echo "Renew manually with: certbot certonly --manual --preferred-challenges dns --cert-name $DOMAIN --force-renewal -d $DOMAIN && systemctl reload apache2"
 echo "Admin API token: $ADMIN_API_TOKEN"
 echo "Store this token securely; it is not the Telegram bot token."
 echo "Repository: https://github.com/infowild/mirzabot"
