@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/bootstrap.php';
 ini_set('error_log', __DIR__ . '/error_log');
 date_default_timezone_set('Asia/Tehran');
 
@@ -149,9 +150,14 @@ class ServiceMonitor
         }
         $usedTraffic = floatval($userData['used_traffic'] ?? 0);
         $remainingVolume = $dataLimit - $usedTraffic;
-        // Warn at 80% used OR any point past 80% (including fully exhausted)
-        $usedPercent = ($usedTraffic / $dataLimit) * 100;
-        $isVolumeWarning = $usedPercent >= 80 && in_array($userData['status'], ['active', 'Unknown', 'limited']);
+        // Warn when remaining volume <= volumewarn (GB) from settings (default 3 GB)
+        $warnGb = floatval($this->setting['volumewarn'] ?? 3);
+        if ($warnGb <= 0) {
+            $warnGb = 3;
+        }
+        $warnBytes = $warnGb * 1024 * 1024 * 1024;
+        $isVolumeWarning = $remainingVolume <= $warnBytes
+            && in_array($userData['status'], ['active', 'Unknown', 'limited'], true);
 
         if ($isVolumeWarning) {
             $remaining = max(0, $remainingVolume);

@@ -4,6 +4,7 @@ require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../botapi.php';
 require_once __DIR__ . '/../Marzban.php';
 require_once __DIR__ . '/../function.php';
+require_once __DIR__ . '/security.php';
 require_once __DIR__ . '/../panels.php';
 require_once __DIR__ . '/../keyboard.php';
 require_once __DIR__ . '/../jdf.php';
@@ -19,6 +20,7 @@ use Endroid\QrCode\Writer\PngWriter;
 $ManagePanel = new ManagePanel();
 
 $invoice_id = htmlspecialchars($_POST['invoice_id'], ENT_QUOTES, 'UTF-8');
+$paymentLock = acquirePaymentCallbackLock($invoice_id);
 $setting = select("setting", "*");
 $PaySetting = select("PaySetting", "ValuePay", "NamePay", "merchant_id_aqayepardakht","select")['ValuePay'];
 $Payment_report = select("Payment_report", "price", "id_order", $invoice_id,"select")['price'];

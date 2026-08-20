@@ -144,6 +144,10 @@ $initials = mb_strtoupper(mb_substr($currentUser, 0, 1, 'UTF-8'), 'UTF-8');
             title="گزارش مالی">
             <span class="nav-icon"><?= icon('trend') ?></span><span class="nav-label">گزارش مالی</span>
           </a>
+          <a href="backup.php" class="nav-item <?= $activeNav === 'backup' ? 'active' : '' ?>"
+            title="بکاپ و بازیابی">
+            <span class="nav-icon"><?= icon('package') ?></span><span class="nav-label">بکاپ و بازیابی</span>
+          </a>
           <a href="keyboard.php" class="nav-item <?= $activeNav === 'keyboard' ? 'active' : '' ?>"
             title="<?= $textbotlang['panel']['layoutPageTitleKeyboard'] ?>">
             <span class="nav-icon">

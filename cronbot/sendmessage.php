@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/bootstrap.php';
 date_default_timezone_set('Asia/Tehran');
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../botapi.php';
@@ -103,8 +104,8 @@ for ($i = 0; $i < 20; $i++) {
             $userinfo = select("user", "Balance", "id", $iduser->id, "select");
             if ($invoicecount == 0 and $userinfo['Balance'] == 0) {
                 $Id_user = $iduser->id;
-                $stmt = $pdo->prepare("DELETE FROM user WHERE id = '$Id_user'");
-                $stmt->execute();
+                $stmt = $pdo->prepare("DELETE FROM user WHERE id = ?");
+                $stmt->execute([$Id_user]);
             }
         }
 

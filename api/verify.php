@@ -119,6 +119,11 @@ function validate_telegram_init_data($rawData, string $botToken): array
         throw new RuntimeException('User verification failed');
     }
 
+    $authDate = filter_var($initData['auth_date'] ?? null, FILTER_VALIDATE_INT);
+    if ($authDate === false || $authDate <= 0 || abs(time() - $authDate) > 300) {
+        throw new RuntimeException('Telegram init data has expired');
+    }
+
     $userRaw = $initData['user'] ?? null;
     if (is_string($userRaw)) {
         $userData = json_decode($userRaw, true);

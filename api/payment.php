@@ -3,6 +3,7 @@
 // Configuration and includes
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../function.php';
+require_once __DIR__ . '/security.php';
 require_once __DIR__ . '/../botapi.php';
 require_once __DIR__ . '/../panels.php';
 header('Content-Type: application/json');
@@ -49,17 +50,7 @@ function sendReport($text, $groupid, $topic_id, $reply_markup = null)
 
 function validateToken($headers)
 {
-    global $APIKEY;
-    if (!isset($headers['Token'])) {
-        return false;
-    }
-    if (is_file('hash.txt')) {
-        $token = file_get_contents('hash.txt');
-    } else {
-        return false;
-    }
-    $validTokens = [$token, $APIKEY];
-    return in_array($headers['Token'], $validTokens, true);
+    return apiValidateAdminToken($headers);
 }
 // Token validation
 $headers = getallheaders();
@@ -81,8 +72,8 @@ $action = $data['actions'] ?? null; // Use null coalescing operator
 // Log the API request
 $stmt = $pdo->prepare("INSERT IGNORE INTO logs_api (header, data, time, ip, actions) VALUES (:header, :data, :time, :ip, :actions)");
 $stmt->execute([
-    ':header' => json_encode($headers),
-    ':data' => json_encode($data),
+    ':header' => json_encode(apiRedact($headers)),
+    ':data' => json_encode(apiRedact($data)),
     ':time' => date('Y/m/d H:i:s'),
     ':ip' => $_SERVER['REMOTE_ADDR'],
     ':actions' => $action

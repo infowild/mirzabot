@@ -1,4 +1,8 @@
 <?php
+if (PHP_SAPI !== 'cli') {
+    http_response_code(404);
+    exit;
+}
 require_once 'function.php';
 require_once 'config.php';
 require_once 'botapi.php';
@@ -248,7 +252,7 @@ timeauto_not_verify,status_keyboard_config,cron_status
         addFieldToTable("setting", "statussupportpv", "offpvsupport", "VARCHAR(100)");
         addFieldToTable("setting", "affiliatespercentage", "0", "VARCHAR(600)");
         addFieldToTable("setting", "inlinebtnmain", "offinline", "VARCHAR(200)");
-        addFieldToTable("setting", "volumewarn", "2", "VARCHAR(200)");
+        addFieldToTable("setting", "volumewarn", "3", "VARCHAR(200)");
         addFieldToTable("setting", "statusagentrequest", "onrequestagent", "VARCHAR(600)");
         addFieldToTable("setting", "statusnewuser", "onnewuser", "VARCHAR(600)");
         addFieldToTable("setting", "numbercount", "0", "VARCHAR(600)");
@@ -1310,6 +1314,3 @@ try {
 if ($check && $check->rowCount() != 0) {
     $pdo->exec("ALTER TABLE `user` DROP `ref_code`");
 }
-telegram('setwebhook', [
-    'url' => "https://$domainhosts/index.php"
-]);

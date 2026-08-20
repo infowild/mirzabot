@@ -1,6 +1,7 @@
 <?php
 require_once '../config.php';
 require_once '../function.php';
+require_once __DIR__ . '/security.php';
 $textbotlang = languagechange();
 require_once '../botapi.php';
 require_once '../panels.php';
@@ -42,8 +43,19 @@ if (!is_array($data)) {
 }
 
 $data = sanitize_recursive($data);
-$tokencheck = explode('Bearer ', $headers['Authorization'])[1];
+$authorization = apiHeaderValue($headers, 'Authorization') ?? '';
+if (!preg_match('/^Bearer\s+(.+)$/i', $authorization, $matches) || trim($matches[1]) === '') {
+    http_response_code(403);
+    echo json_encode(['status' => false, 'msg' => 'Token invalid']);
+    return;
+}
+$tokencheck = trim($matches[1]);
 $usercheck = select('user', "*", "id", $data['user_id'], "select");
+if (!$usercheck || !hash_equals((string) ($usercheck['token'] ?? ''), $tokencheck)) {
+    http_response_code(403);
+    echo json_encode(['status' => false, 'msg' => 'Token invalid']);
+    return;
+}
 if ($usercheck['User_Status'] == "block") {
     echo json_encode([
         'status' => false,
@@ -55,22 +67,6 @@ if ($usercheck['User_Status'] == "block") {
 $errorreport = select("topicid", "idreport", "report", "errorreport", "select")['idreport'];
 $porsantreport = select("topicid", "idreport", "report", "porsantreport", "select")['idreport'];
 $buyreport = select("topicid", "idreport", "report", "buyreport", "select")['idreport'];
-if ($tokencheck === '' || $tokencheck == null) {
-    echo json_encode([
-        'status' => false,
-        'msg' => "Token invalid",
-    ]);
-    http_response_code(403);
-    return;
-}
-if (!$usercheck || $usercheck['token'] != $tokencheck) {
-    echo json_encode([
-        'status' => false,
-        'msg' => "Token invalid",
-    ]);
-    http_response_code(403);
-    return;
-}
 switch ($data['actions']) {
     case 'invoices':
         if ($method !== "GET") {

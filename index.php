@@ -3,7 +3,7 @@ $version = file_get_contents('version');
 date_default_timezone_set('Asia/Tehran');
 ini_set('default_charset', 'UTF-8');
 ini_set('error_log', 'error_log');
-ini_set('memory_limit', '-1');
+ini_set('memory_limit', '512M');
 require_once 'config.php';
 require_once 'botapi.php';
 require_once 'jdf.php';

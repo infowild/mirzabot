@@ -2,6 +2,7 @@
 
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../function.php';
+require_once __DIR__ . '/security.php';
 require_once __DIR__ . '/../botapi.php';
 header('Content-Type: application/json');
 date_default_timezone_set('Asia/Tehran');
@@ -10,8 +11,8 @@ ini_set('error_log', 'error_log');
 
 $headrs = getallheaders();
 $setting = select("setting", "*");
-$token = file_get_contents('hash.txt');
-if(!isset($headrs['Token']) or $token != $headrs['Token']){
+if (!apiValidateAdminToken($headrs)) {
+    http_response_code(403);
     echo json_encode(array(
         'status' => false,
         'msg' => "token invalid"
@@ -31,8 +32,10 @@ if(!is_array($data)){
 }
 $data = sanitize_recursive($data);
 $stmt = $pdo->prepare("INSERT IGNORE INTO logs_api (header,data,time,ip,actions) VALUES (:header,:data,:time,:ip,:actions)");
-$stmt->bindParam(':header',json_encode($headrs));
-$stmt->bindParam(':data',json_encode($data));
+$safeHeaders = json_encode(apiRedact($headrs));
+$safeData = json_encode(apiRedact($data));
+$stmt->bindParam(':header', $safeHeaders);
+$stmt->bindParam(':data', $safeData);
 $stmt->bindParam(':time',date('Y/m/d H:i:s'));
 $stmt->bindParam(':ip',$_SERVER['REMOTE_ADDR']);
 $stmt->bindParam(':actions',$data['actions']);
@@ -47,7 +50,7 @@ switch ($data['actions']) {
     return;
 }
         if (isset($data['limit']) && is_numeric($data['limit'])){
-            $limit = "LIMIT {$data['limit']}";
+            $limit = 'LIMIT ' . min(max((int) $data['limit'], 1), 1000);
         }else{
             $limit = "";
         }

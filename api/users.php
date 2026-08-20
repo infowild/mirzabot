@@ -2,6 +2,7 @@
 
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../function.php';
+require_once __DIR__ . '/security.php';
 $textbotlang = languagechange();
 require_once __DIR__ . '/../botapi.php';
 
@@ -48,17 +49,7 @@ function sendReport($text, $groupid, $topic_id, $reply_markup = null)
 
 function validateToken($headers)
 {
-    global $APIKEY;
-    if (!isset($headers['Token'])) {
-        return false;
-    }
-    if (is_file('hash.txt')) {
-        $token = file_get_contents('hash.txt');
-    } else {
-        return false;
-    }
-    $validTokens = [$token, $APIKEY];
-    return in_array($headers['Token'], $validTokens, true);
+    return apiValidateAdminToken($headers);
 }
 
 function sanitizeRecursive($data)
@@ -85,8 +76,8 @@ function logApiRequest($headers, $data, $action)
             "INSERT IGNORE INTO logs_api (header, data, time, ip, actions) VALUES (?, ?, ?, ?, ?)"
         );
         $stmt->execute([
-            json_encode($headers),
-            json_encode($data),
+            json_encode(apiRedact($headers)),
+            json_encode(apiRedact($data)),
             date('Y/m/d H:i:s'),
             $_SERVER['REMOTE_ADDR'] ?? 'unknown',
             $action
@@ -141,13 +132,16 @@ switch ($data['actions'] ?? '') {
         $page = isset($data['page']) && is_numeric($data['page']) ? max((int) $data['page'], 1) : 1;
         $offset = ($page - 1) * $limit;
         $q = isset($data['q']) ? $data['q'] : '';
-        $agent_type = isset($data['agent']) ? " AND agent = '{$data['agent']}'" : '';
+        $agent_type = isset($data['agent']) ? " AND agent = :agent" : '';
 
         try {
             $stmt = $pdo->prepare("SELECT COUNT(*) as total FROM user WHERE (id LIKE :id_user OR username LIKE :username) $agent_type");
             $search = "%$q%";
             $stmt->bindParam(':id_user', $search, PDO::PARAM_STR);
             $stmt->bindParam(':username', $search, PDO::PARAM_STR);
+            if (isset($data['agent'])) {
+                $stmt->bindValue(':agent', (string) $data['agent'], PDO::PARAM_STR);
+            }
             $stmt->execute();
             $totalUsers = (int) $stmt->fetchColumn();
             $totalPages = ceil($totalUsers / $limit);
@@ -155,6 +149,9 @@ switch ($data['actions'] ?? '') {
             $stmt = $pdo->prepare($query);
             $stmt->bindValue(':username', $q, PDO::PARAM_STR);
             $stmt->bindValue(':user_id', $q, PDO::PARAM_INT);
+            if (isset($data['agent'])) {
+                $stmt->bindValue(':agent', (string) $data['agent'], PDO::PARAM_STR);
+            }
             $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
             $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
             $stmt->execute();

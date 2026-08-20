@@ -2,6 +2,7 @@
 
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../function.php';
+require_once __DIR__ . '/security.php';
 require_once __DIR__ . '/../botapi.php';
 
 // Set headers and configuration
@@ -61,17 +62,7 @@ function sendReport($text, $groupid, $topic_id, $reply_markup = null)
 
 function validateToken($headers)
 {
-    global $APIKEY;
-    if (!isset($headers['Token'])) {
-        return false;
-    }
-    if (is_file('hash.txt')) {
-        $token = file_get_contents('hash.txt');
-    } else {
-        return false;
-    }
-    $validTokens = [$token, $APIKEY];
-    return in_array($headers['Token'], $validTokens, true);
+    return apiValidateAdminToken($headers);
 }
 
 function sanitizeRecursive($data)
@@ -98,8 +89,8 @@ function logApiRequest($headers, $data, $action)
             "INSERT IGNORE INTO logs_api (header, data, time, ip, actions) VALUES (?, ?, ?, ?, ?)"
         );
         $stmt->execute([
-            json_encode($headers),
-            json_encode($data),
+            json_encode(apiRedact($headers)),
+            json_encode(apiRedact($data)),
             date('Y/m/d H:i:s'),
             $_SERVER['REMOTE_ADDR'] ?? 'unknown',
             $action

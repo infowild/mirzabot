@@ -224,6 +224,20 @@ include __DIR__ . '/inc/layout_head.php';
 
 <?php elseif ($tab === 'system'): ?>
 
+    <div class="card fade-up" style="margin-bottom:16px">
+        <div class="card-head">
+            <div>
+                <div class="card-title">بکاپ و بازیابی</div>
+                <div class="card-subtitle">دانلود بکاپ دیتابیس یا بازیابی از فایل zip/sql</div>
+            </div>
+            <a href="backup.php" class="btn btn-primary btn-sm"><?= icon('package', 13) ?>&nbsp;باز کردن</a>
+        </div>
+        <div class="card-body" style="font-size:.8rem;color:var(--mute);line-height:1.7">
+            از این بخش می‌توانید بکاپ فعلی را دانلود کنید یا فایل بکاپ ربات را آپلود و بازیابی کنید.
+            فایل <code>config.php</code> سرور هرگز جایگزین نمی‌شود.
+        </div>
+    </div>
+
     <div class="card fade-up">
         <div class="card-head">
             <div>

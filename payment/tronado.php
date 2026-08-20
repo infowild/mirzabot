@@ -5,6 +5,7 @@ require_once __DIR__ . '/../jdf.php';
 require_once __DIR__ . '/../botapi.php';
 require_once __DIR__ . '/../Marzban.php';
 require_once __DIR__ . '/../function.php';
+require_once __DIR__ . '/security.php';
 require_once __DIR__ . '/../panels.php';
 require_once __DIR__ . '/../keyboard.php';
 require __DIR__ . '/../vendor/autoload.php';
@@ -18,6 +19,7 @@ use Endroid\QrCode\Writer\PngWriter;
 
 $ManagePanel = new ManagePanel();
 $data = json_decode(file_get_contents("php://input"), true);
+$paymentLock = acquirePaymentCallbackLock($data['PaymentID'] ?? '');
 $Payment_report = select("Payment_report", "*", "id_order", $data['PaymentID'], "select");
 if (!$Payment_report)
     return;

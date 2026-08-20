@@ -316,7 +316,7 @@ Two editions are available:
 - ✅ Multiple username generation methods
 - ✅ Protocol-based config settings
 - ✅ Payment gateway management
-- ✅ **Volume warnings sent to the buyer** (80% threshold)
+- ✅ **Volume warnings sent to the buyer** (≤ `volumewarn` GB remaining, default 3 GB)
 - ✅ **Expiry warnings sent to the buyer** (default: 2 days left — configurable via `daywarn`)
 - ✅ **Finance report in the admin web panel** (sales + renewals + extras)
 
@@ -380,7 +380,7 @@ When viewing the subscription link, the bot reads `invoice.uuid` directly — no
 
 | Type | Trigger |
 |------|---------|
-| Volume warning | Used traffic ≥ **80%** of limit |
+| Volume warning | Remaining traffic ≤ **`volumewarn` GB** (default **3 GB**) |
 | Time warning | Remaining time ≤ **`daywarn` days** (default **2**) |
 
 #### Behavior
@@ -433,6 +433,8 @@ The installer will ask for:
 Everything else is fully automatic: Apache, PHP 8.2, MySQL, SSL, webhook, and cron jobs.
 Default code path: `/var/www/mirzabot`
 
+The installer generates a separate Admin API token and prints it once at the end. Store it securely; the Telegram bot token is never accepted as an Admin API credential. Cron jobs are installed in `/etc/cron.d/mirzabot` with per-job locks.
+
 ---
 
 ### 🔄 Updating
@@ -440,7 +442,9 @@ Default code path: `/var/www/mirzabot`
 To update to the latest version:
 
 ```bash
-cd /var/www/mirzabot && git pull origin main
+cd /var/www/mirzabot
+git fetch --prune origin main
+git merge --ff-only origin/main
 ```
 
 Or re-run the installer, which pulls the latest changes automatically:
@@ -481,9 +485,28 @@ php cronbot/NoticationsService.php
 
 ---
 
+### 🔐 TLS with a private CA
+
+TLS certificate verification is enabled. For a panel using a private/self-signed CA, configure the CA bundle instead of disabling verification:
+
+```bash
+export MIRZABOT_CA_BUNDLE=/etc/mirzabot/private-ca.pem
+```
+
 ### ❌ Removal
 
-To remove manually: stop Apache and MySQL, delete `/var/www/mirzabot`, and drop the database.
+Safe removal preserves the database and copies any project backup directories to `/var/backups`:
+
+```bash
+cd /var/www/mirzabot
+sudo bash uninstall.sh
+```
+
+Permanent removal of all MirzaBot-specific data—including the project files, database/user, webhook, cron jobs, web-server configuration, logs, project backup archives, and its Let's Encrypt certificate—requires both `--purge` and typing `PURGE` interactively. Shared system packages such as Apache, PHP, MySQL, and Certbot are intentionally preserved:
+
+```bash
+sudo bash uninstall.sh --purge
+```
 
 ---
 

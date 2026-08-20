@@ -4,6 +4,7 @@ require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../botapi.php';
 require_once __DIR__ . '/../panels.php';
 require_once __DIR__ . '/../function.php';
+require_once __DIR__ . '/security.php';
 require_once __DIR__ . '/../keyboard.php';
 require_once __DIR__ . '/../jdf.php';
 require __DIR__ . '/../vendor/autoload.php';
@@ -16,6 +17,7 @@ if (isset($data['payment_status']) && $data['payment_status'] == "finished") {
     $pay = StatusPayment($data['payment_id']);
     if ($pay['payment_status'] != "finished")
         return;
+    $paymentLock = acquirePaymentCallbackLock($pay['invoice_id']);
     $Payment_report = select("Payment_report", "*", "dec_not_confirmed", $pay['invoice_id'], "select");
     if ($Payment_report) {
         if ($Payment_report['payment_Status'] == "paid")

@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/bootstrap.php';
 /**
  * Debug volume/time notification for one service username.
  * Usage (on server):

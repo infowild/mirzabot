@@ -2,6 +2,7 @@
 
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../function.php';
+require_once __DIR__ . '/security.php';
 require_once __DIR__ . '/../botapi.php';
 header('Content-Type: application/json');
 date_default_timezone_set('Asia/Tehran');
@@ -10,7 +11,7 @@ ini_set('error_log', 'error_log');
 
 $headrs = getallheaders();
 $setting = select("setting", "*");
-if(!isset($headrs['Token']) or $APIKEY != $headrs['Token']){
+if (!apiValidateAdminToken($headrs)) {
     http_response_code(403);
     echo json_encode(array(
         'status' => false,
@@ -19,13 +20,7 @@ if(!isset($headrs['Token']) or $APIKEY != $headrs['Token']){
     return;
 }
 
-$stmt = $pdo->prepare("INSERT IGNORE INTO logs_api (header,data,time,ip,actions) VALUES (:header,:data,:time,:ip,:actions)");
-$stmt->bindParam(':header',json_encode($headrs));
-$stmt->bindParam(':data',json_encode(array()));
-$stmt->bindParam(':time',date('Y/m/d H:i:s'));
-$stmt->bindParam(':ip',$_SERVER['REMOTE_ADDR']);
-$stmt->bindParam(':actions',$data['actions']);
-$stmt->execute();
+apiLogRequest($pdo, $headrs, [], 'log');
 
 
 $count_user = select("user","*",null,null,"count");

@@ -5,6 +5,7 @@ require_once __DIR__ . '/../jdf.php';
 require_once __DIR__ . '/../botapi.php';
 require_once __DIR__ . '/../Marzban.php';
 require_once __DIR__ . '/../function.php';
+require_once __DIR__ . '/security.php';
 require_once __DIR__ . '/../keyboard.php';
 require_once __DIR__ . '/../panels.php';
 require __DIR__ . '/../vendor/autoload.php';
@@ -25,6 +26,7 @@ $PaySetting = select("PaySetting", "ValuePay", "NamePay", "merchant_zarinpal","s
 $Payment_reports = select("Payment_report", "*", "dec_not_confirmed", $Authority,"select");
 $price = $Payment_reports['price'];
 $invoice_id = $Payment_reports['id_order'];
+$paymentLock = acquirePaymentCallbackLock($invoice_id);
 // verify Transaction
 $dec_payment_status = "";
 $payment_status = "";

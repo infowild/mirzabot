@@ -742,8 +742,16 @@ class IBSng
         curl_setopt($this->handler, CURLOPT_RETURNTRANSFER, TRUE);
 //        curl_setopt($this->handler, CURLOPT_FOLLOWLOCATION, TRUE);
         curl_setopt($this->handler, CURLOPT_USERAGENT, $this->agent);
-        curl_setopt($this->handler, CURLOPT_SSL_VERIFYHOST, false);
-        curl_setopt($this->handler, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($this->handler, CURLOPT_SSL_VERIFYHOST, 2);
+        curl_setopt($this->handler, CURLOPT_SSL_VERIFYPEER, true);
+        $caBundle = getenv('MIRZABOT_CA_BUNDLE');
+        if (is_string($caBundle) && $caBundle !== '') {
+            $caPath = realpath($caBundle);
+            if ($caPath === false || !is_file($caPath) || !is_readable($caPath)) {
+                throw new \RuntimeException('Configured TLS CA bundle is not readable.');
+            }
+            curl_setopt($this->handler, CURLOPT_CAINFO, $caPath);
+        }
         curl_setopt($this->handler, CURLOPT_COOKIEFILE, $this->getCookie());
         curl_setopt($this->handler, CURLOPT_COOKIEJAR, $this->getCookie());
         $output = curl_exec($this->handler);

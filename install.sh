@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -e
+set -Eeuo pipefail
 
 echo "==== Mirza Bot Auto Installer ===="
 
@@ -23,8 +23,13 @@ read -sp "Database password: " DB_PASS
 echo ""
 
 read -p "Telegram bot token (from BotFather): " BOT_TOKEN
+ADMIN_API_TOKEN="$(od -An -N32 -tx1 /dev/urandom | tr -d ' \n')"
 read -p "Admin Telegram ID (numeric): " ADMIN_ID
 read -p "Bot username without @ (example: my_mirza_bot): " BOT_USERNAME
+
+[[ "$DOMAIN" =~ ^[A-Za-z0-9.-]+$ ]] || { echo "Invalid domain."; exit 1; }
+[[ "$DB_NAME" =~ ^[A-Za-z0-9_]+$ ]] || { echo "Invalid database name."; exit 1; }
+[[ "$DB_USER" =~ ^[A-Za-z0-9_]+$ ]] || { echo "Invalid database username."; exit 1; }
 
 echo ""
 echo "Domain:       $DOMAIN"
@@ -78,9 +83,11 @@ cd /var/www
 if [ -d "mirzabot" ]; then
   echo "/var/www/mirzabot already exists. Pulling latest changes ..."
   cd /var/www/mirzabot
-  git pull origin main
+  git remote set-url origin https://github.com/infowild/mirzabot.git
+  git fetch --prune origin main
+  git merge --ff-only origin/main
 else
-  git clone https://github.com/Samr002/mirzabot.git
+  git clone --origin origin https://github.com/infowild/mirzabot.git mirzabot
 fi
 
 cd /var/www/mirzabot
@@ -96,6 +103,10 @@ cat >/etc/apache2/sites-available/mirzabot.conf <<EOF
     <Directory /var/www/mirzabot>
         AllowOverride All
         Require all granted
+    </Directory>
+
+    <Directory /var/www/mirzabot/cronbot>
+        Require all denied
     </Directory>
 
     ErrorLog \${APACHE_LOG_DIR}/mirzabot_error.log
@@ -124,7 +135,7 @@ cat >"$CONFIG_PATH" <<PHP
 \$passworddb = '$DB_PASS';
 
 \$connect = mysqli_connect(\$dbhost, \$usernamedb, \$passworddb, \$dbname);
-if (\$connect->connect_error) { die("error" . \$connect->connect_error); }
+if (!\$connect) { error_log('Database connection failed.'); http_response_code(500); die('Service unavailable.'); }
 mysqli_set_charset(\$connect, "utf8mb4");
 
 \$options = [
@@ -137,13 +148,30 @@ mysqli_set_charset(\$connect, "utf8mb4");
 
 // ================= TELEGRAM BOT =================
 \$APIKEY      = '$BOT_TOKEN';
+\$ADMIN_API_TOKEN = '$ADMIN_API_TOKEN';
+\$tls_ca_bundle = getenv('MIRZABOT_CA_BUNDLE') ?: null;
 \$adminnumber = '$ADMIN_ID';
-\$domainhosts = 'https://$DOMAIN';
+\$domainhosts = '$DOMAIN';
 \$usernamebot = '$BOT_USERNAME';
+
+function configureCurlTls(\$handle): void
+{
+    global \$tls_ca_bundle;
+    curl_setopt(\$handle, CURLOPT_SSL_VERIFYPEER, true);
+    curl_setopt(\$handle, CURLOPT_SSL_VERIFYHOST, 2);
+    if (is_string(\$tls_ca_bundle) && \$tls_ca_bundle !== '') {
+        \$caPath = realpath(\$tls_ca_bundle);
+        if (\$caPath === false || !is_file(\$caPath) || !is_readable(\$caPath)) {
+            throw new RuntimeException('Configured TLS CA bundle is not readable.');
+        }
+        curl_setopt(\$handle, CURLOPT_CAINFO, \$caPath);
+    }
+}
 ?>
 PHP
 
-chown www-data:www-data "$CONFIG_PATH"
+chown root:www-data "$CONFIG_PATH"
+chmod 0640 "$CONFIG_PATH"
 
 ### 7. Run table.php (create DB tables)
 echo "==> Running table.php ..."
@@ -162,26 +190,45 @@ echo "==> Setting Telegram webhook ..."
 WEBHOOK_URL="https://$DOMAIN/index.php"
 curl -s "https://api.telegram.org/bot$BOT_TOKEN/deleteWebhook" >/dev/null 2>&1 || true
 
-WEBHOOK_RESULT=$(curl -s "https://api.telegram.org/bot$BOT_TOKEN/setWebhook?url=$WEBHOOK_URL")
+WEBHOOK_RESULT=$(curl --fail --silent --show-error --get \
+  --data-urlencode "url=$WEBHOOK_URL" \
+  "https://api.telegram.org/bot$BOT_TOKEN/setWebhook")
 echo "Webhook response: $WEBHOOK_RESULT"
 
 ### 10. Cron jobs
 echo "==> Installing cron jobs ..."
-crontab - <<EOF
-* * * * * php /var/www/mirzabot/cronbot/NoticationsService.php >/dev/null 2>&1
-*/5 * * * * php /var/www/mirzabot/cronbot/uptime_panel.php >/dev/null 2>&1
-*/5 * * * * php /var/www/mirzabot/cronbot/uptime_node.php >/dev/null 2>&1
-*/10 * * * * php /var/www/mirzabot/cronbot/expireagent.php >/dev/null 2>&1
-*/10 * * * * php /var/www/mirzabot/cronbot/payment_expire.php >/dev/null 2>&1
-0 * * * * php /var/www/mirzabot/cronbot/statusday.php >/dev/null 2>&1
-0 3 * * * php /var/www/mirzabot/cronbot/backupbot.php >/dev/null 2>&1
-*/15 * * * * php /var/www/mirzabot/cronbot/iranpay1.php >/dev/null 2>&1
-*/15 * * * * php /var/www/mirzabot/cronbot/plisio.php >/dev/null 2>&1
+
+# Remove only legacy MirzaBot entries and preserve unrelated crontab jobs.
+if command -v crontab >/dev/null 2>&1; then
+  for cron_user in root www-data; do
+    legacy_cron="$(mktemp)"
+    if crontab -u "$cron_user" -l >"$legacy_cron" 2>/dev/null; then
+      sed '\#/var/www/mirzabot/cronbot/#d' "$legacy_cron" | crontab -u "$cron_user" -
+    fi
+    rm -f "$legacy_cron"
+  done
+fi
+
+cat >/etc/cron.d/mirzabot <<EOF
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+* * * * * www-data flock -n /run/lock/mirzabot-notifications.lock php /var/www/mirzabot/cronbot/NoticationsService.php >/dev/null 2>&1
+*/5 * * * * www-data flock -n /run/lock/mirzabot-uptime-panel.lock php /var/www/mirzabot/cronbot/uptime_panel.php >/dev/null 2>&1
+*/5 * * * * www-data flock -n /run/lock/mirzabot-uptime-node.lock php /var/www/mirzabot/cronbot/uptime_node.php >/dev/null 2>&1
+*/10 * * * * www-data flock -n /run/lock/mirzabot-expire-agent.lock php /var/www/mirzabot/cronbot/expireagent.php >/dev/null 2>&1
+*/10 * * * * www-data flock -n /run/lock/mirzabot-payment-expire.lock php /var/www/mirzabot/cronbot/payment_expire.php >/dev/null 2>&1
+0 * * * * www-data flock -n /run/lock/mirzabot-statusday.lock php /var/www/mirzabot/cronbot/statusday.php >/dev/null 2>&1
+0 3 * * * www-data flock -n /run/lock/mirzabot-backup.lock php /var/www/mirzabot/cronbot/backupbot.php >/dev/null 2>&1
+*/15 * * * * www-data flock -n /run/lock/mirzabot-iranpay.lock php /var/www/mirzabot/cronbot/iranpay1.php >/dev/null 2>&1
+*/15 * * * * www-data flock -n /run/lock/mirzabot-plisio.lock php /var/www/mirzabot/cronbot/plisio.php >/dev/null 2>&1
 EOF
+chmod 0644 /etc/cron.d/mirzabot
 
 echo ""
 echo "===== Installation FINISHED Successfully ====="
 echo "Now go to Telegram and send /start to @$BOT_USERNAME"
 echo ""
 echo "Panel URL:  https://$DOMAIN"
-echo "Repository: https://github.com/Samr002/mirzabot"
+echo "Admin API token: $ADMIN_API_TOKEN"
+echo "Store this token securely; it is not the Telegram bot token."
+echo "Repository: https://github.com/infowild/mirzabot"

@@ -14,8 +14,8 @@ curl_setopt_array($curl, array(
   CURLOPT_RETURNTRANSFER => true,
   CURLOPT_ENCODING => '',
   CURLOPT_MAXREDIRS => 10,
-  CURLOPT_SSL_VERIFYHOST =>  false,
-  CURLOPT_SSL_VERIFYPEER => false,
+  CURLOPT_SSL_VERIFYHOST => 2,
+  CURLOPT_SSL_VERIFYPEER => true,
   CURLOPT_TIMEOUT_MS => 4000,
   CURLOPT_FOLLOWLOCATION => true,
   CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
@@ -25,6 +25,7 @@ curl_setopt_array($curl, array(
   ),
   CURLOPT_COOKIEFILE => 'cookie.txt',
 ));
+configureCurlTls($curl);
 $output = [];
 $response = json_decode(curl_exec($curl),true)['obj'];
 if(!isset($response))return;
@@ -145,8 +146,8 @@ curl_setopt_array($curl, array(
   CURLOPT_ENCODING => '',
   CURLOPT_MAXREDIRS => 10,
   CURLOPT_TIMEOUT => 0,
-  CURLOPT_SSL_VERIFYHOST =>  false,
-  CURLOPT_SSL_VERIFYPEER => false,
+  CURLOPT_SSL_VERIFYHOST => 2,
+  CURLOPT_SSL_VERIFYPEER => true,
   CURLOPT_FOLLOWLOCATION => true,
   CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
   CURLOPT_CUSTOMREQUEST => 'POST',
@@ -155,6 +156,7 @@ curl_setopt_array($curl, array(
   ),
   CURLOPT_COOKIEFILE => 'cookie.txt',
 ));
+configureCurlTls($curl);
 $response = json_decode(curl_exec($curl),true)['obj'];
 if($response == null)return "offline";
 if(in_array($username,$response))return "online";

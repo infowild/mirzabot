@@ -227,6 +227,27 @@ function normaliseUpdateValue($value)
     return $value;
 }
 
+function quoteSqlIdentifier($identifier)
+{
+    if (!is_string($identifier) || !preg_match('/^[\p{L}_][\p{L}\p{N}_]*$/uD', $identifier)) {
+        throw new InvalidArgumentException('Invalid database identifier.');
+    }
+    return '`' . $identifier . '`';
+}
+
+function redactSensitiveValue($value, $key = '')
+{
+    if (preg_match('/(?:token|authorization|cookie|api[-_]?key|password|secret)/i', (string) $key)) {
+        return '[REDACTED]';
+    }
+    if (is_array($value)) {
+        foreach ($value as $childKey => $childValue) {
+            $value[$childKey] = redactSensitiveValue($childValue, (string) $childKey);
+        }
+    }
+    return $value;
+}
+
 function copyDirectoryContents($source, $destination)
 {
     if (!is_dir($source)) {
@@ -340,17 +361,18 @@ function update($table, $field, $newValue, $whereField = null, $whereValue = nul
     global $pdo, $user;
 
     $valueToStore = normaliseUpdateValue($newValue);
+    $tableSql = quoteSqlIdentifier($table);
+    $fieldSql = quoteSqlIdentifier($field);
+    $whereFieldSql = $whereField !== null ? quoteSqlIdentifier($whereField) : null;
 
-    ensureColumnExistsForUpdate($table, $field, $valueToStore);
-
-    $executeUpdate = function ($value) use ($pdo, $table, $field, $whereField, $whereValue) {
+    $executeUpdate = function ($value) use ($pdo, $tableSql, $fieldSql, $whereField, $whereFieldSql, $whereValue) {
         if ($whereField !== null) {
-            $stmt = $pdo->prepare("SELECT $field FROM $table WHERE $whereField = ? FOR UPDATE");
+            $stmt = $pdo->prepare("SELECT $fieldSql FROM $tableSql WHERE $whereFieldSql = ? FOR UPDATE");
             $stmt->execute([$whereValue]);
-            $stmt = $pdo->prepare("UPDATE $table SET $field = ? WHERE $whereField = ?");
+            $stmt = $pdo->prepare("UPDATE $tableSql SET $fieldSql = ? WHERE $whereFieldSql = ?");
             $stmt->execute([$value, $whereValue]);
         } else {
-            $stmt = $pdo->prepare("UPDATE $table SET $field = ?");
+            $stmt = $pdo->prepare("UPDATE $tableSql SET $fieldSql = ?");
             $stmt->execute([$value]);
         }
     };
@@ -359,34 +381,21 @@ function update($table, $field, $newValue, $whereField = null, $whereValue = nul
         $executeUpdate($valueToStore);
     } catch (PDOException $e) {
         if (strpos($e->getMessage(), 'Incorrect string value') !== false) {
-            $tableConverted = ensureTableUtf8mb4($table);
-            if ($tableConverted) {
-                try {
-                    $executeUpdate($valueToStore);
-                } catch (PDOException $retryException) {
-                    error_log('Retry after charset conversion failed: ' . $retryException->getMessage());
-                    throw $retryException;
-                }
-            } else {
-                $fallbackValue = is_string($valueToStore) ? @iconv('UTF-8', 'UTF-8//IGNORE', $valueToStore) : $valueToStore;
-                if ($fallbackValue === false) {
-                    $fallbackValue = '';
-                }
-                $executeUpdate($fallbackValue);
-            }
-        } else {
-            throw $e;
+            error_log('Database charset mismatch; run table.php migration from CLI.');
         }
+        throw $e;
     }
 
     $date = date("Y-m-d H:i:s");
     if (!isset($user['step'])) {
         $user['step'] = '';
     }
-    $logValue = is_scalar($valueToStore) ? $valueToStore : json_encode($valueToStore, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-    $logss = "{$table}_{$field}_{$logValue}_{$whereField}_{$whereValue}_{$user['step']}_$date";
-    if ($field != "message_count" || $field != "last_message_time") {
-        file_put_contents('log.txt', "\n" . $logss, FILE_APPEND);
+    $safeValue = redactSensitiveValue($valueToStore, $field);
+    $safeWhereValue = redactSensitiveValue($whereValue, (string) $whereField);
+    $logValue = is_scalar($safeValue) ? $safeValue : json_encode($safeValue, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $logss = "{$table}_{$field}_{$logValue}_{$whereField}_{$safeWhereValue}_{$user['step']}_$date";
+    if ($field !== "message_count" && $field !== "last_message_time") {
+        file_put_contents('log.txt', "\n" . $logss, FILE_APPEND | LOCK_EX);
     }
 
     clearSelectCache($table);
@@ -447,10 +456,13 @@ function select($table, $field, $whereField = null, $whereValue = null, $type = 
         }
     }
 
-    $query = "SELECT $field FROM $table";
+    $tableSql = quoteSqlIdentifier($table);
+    $fieldSql = $field === '*' ? '*' : quoteSqlIdentifier($field);
+    $whereFieldSql = $whereField !== null ? quoteSqlIdentifier($whereField) : null;
+    $query = "SELECT $fieldSql FROM $tableSql";
 
     if ($whereField !== null) {
-        $query .= " WHERE $whereField = :whereValue";
+        $query .= " WHERE $whereFieldSql = :whereValue";
     }
 
     try {
@@ -487,7 +499,7 @@ function select($table, $field, $whereField = null, $whereValue = null, $type = 
         }
     } catch (PDOException $e) {
         error_log($e->getMessage());
-        die("Query failed: " . $e->getMessage());
+        throw new RuntimeException('Database query failed.');
     }
 
     if ($useCache && $cacheKey !== null) {
@@ -727,8 +739,7 @@ function outputlink($text)
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_TIMEOUT_MS, 10000);
     curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    configureCurlTls($ch);
     $userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36';
     curl_setopt($ch, CURLOPT_USERAGENT, $userAgent);
     $response = curl_exec($ch);
@@ -1505,25 +1516,29 @@ function addCronIfNotExists($cronCommand)
 
 function activecron()
 {
-    global $domainhosts;
-
+    $php = escapeshellarg(PHP_BINARY);
+    $job = static function (string $schedule, string $name) use ($php): string {
+        $script = escapeshellarg(__DIR__ . '/cronbot/' . $name . '.php');
+        $lock = escapeshellarg(sys_get_temp_dir() . '/mirzabot-' . $name . '.lock');
+        return "$schedule flock -n $lock $php $script >/dev/null 2>&1";
+    };
     $cronCommands = [
-        "*/15 * * * * curl https://$domainhosts/cronbot/statusday.php",
-        "*/1 * * * * curl https://$domainhosts/cronbot/croncard.php",
-        "*/1 * * * * curl https://$domainhosts/cronbot/NoticationsService.php",
-        "*/5 * * * * curl https://$domainhosts/cronbot/payment_expire.php",
-        "*/1 * * * * curl https://$domainhosts/cronbot/sendmessage.php",
-        "*/3 * * * * curl https://$domainhosts/cronbot/plisio.php",
-        "*/1 * * * * curl https://$domainhosts/cronbot/activeconfig.php",
-        "*/1 * * * * curl https://$domainhosts/cronbot/disableconfig.php",
-        "*/1 * * * * curl https://$domainhosts/cronbot/iranpay1.php",
-        "0 */5 * * * curl https://$domainhosts/cronbot/backupbot.php",
-        "*/2 * * * * curl https://$domainhosts/cronbot/gift.php",
-        "*/30 * * * * curl https://$domainhosts/cronbot/expireagent.php",
-        "*/15 * * * * curl https://$domainhosts/cronbot/on_hold.php",
-        "*/2 * * * * curl https://$domainhosts/cronbot/configtest.php",
-        "*/15 * * * * curl https://$domainhosts/cronbot/uptime_node.php",
-        "*/15 * * * * curl https://$domainhosts/cronbot/uptime_panel.php",
+        $job('*/15 * * * *', 'statusday'),
+        $job('*/1 * * * *', 'croncard'),
+        $job('*/1 * * * *', 'NoticationsService'),
+        $job('*/5 * * * *', 'payment_expire'),
+        $job('*/1 * * * *', 'sendmessage'),
+        $job('*/3 * * * *', 'plisio'),
+        $job('*/1 * * * *', 'activeconfig'),
+        $job('*/1 * * * *', 'disableconfig'),
+        $job('*/1 * * * *', 'iranpay1'),
+        $job('0 */5 * * *', 'backupbot'),
+        $job('*/2 * * * *', 'gift'),
+        $job('*/30 * * * *', 'expireagent'),
+        $job('*/15 * * * *', 'on_hold'),
+        $job('*/2 * * * *', 'configtest'),
+        $job('*/15 * * * *', 'uptime_node'),
+        $job('*/15 * * * *', 'uptime_panel'),
     ];
 
     addCronIfNotExists($cronCommands);
