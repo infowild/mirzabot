@@ -183,7 +183,26 @@ fi
 
 ### 8. SSL via Certbot
 echo "==> Obtaining SSL certificate ..."
-certbot --apache -d "$DOMAIN" -m "$EMAIL" --agree-tos --redirect --non-interactive || true
+HTTPS_LISTENER="$(ss -H -ltnp 'sport = :443' 2>/dev/null || true)"
+if [[ -n "$HTTPS_LISTENER" && "$HTTPS_LISTENER" != *apache2* ]]; then
+  echo "[ERROR] TCP port 443 is already owned by another service:"
+  echo "$HTTPS_LISTENER"
+  echo "Stop or reconfigure that service, then run the installer again. No webhook was configured."
+  exit 1
+fi
+
+if ! certbot --apache -d "$DOMAIN" -m "$EMAIL" --agree-tos --redirect --non-interactive; then
+  echo "[ERROR] Certbot could not deploy the certificate."
+  echo "Inspect: ss -ltnp 'sport = :443' and journalctl -u apache2 -n 100 --no-pager"
+  exit 1
+fi
+
+apache2ctl configtest
+systemctl restart apache2
+if ! systemctl is-active --quiet apache2; then
+  echo "[ERROR] Apache is not active after certificate deployment; webhook setup was skipped."
+  exit 1
+fi
 
 ### 9. Telegram Webhook
 echo "==> Setting Telegram webhook ..."
