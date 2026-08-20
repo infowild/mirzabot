@@ -47,7 +47,10 @@ if [[ -f "$APP_DIR/config.php" ]]; then
   BOT_TOKEN="$(read_config_value APIKEY)"
   DB_NAME="$(read_config_value dbname)"
   DB_USER="$(read_config_value usernamedb)"
-  DOMAIN="$(read_config_value domain)"
+  DOMAIN="$(read_config_value domainhosts)"
+  DOMAIN="${DOMAIN#https://}"
+  DOMAIN="${DOMAIN#http://}"
+  DOMAIN="${DOMAIN%%/*}"
 fi
 
 rm -f /etc/cron.d/mirzabot
