@@ -1,5 +1,5 @@
 <?php
-include('config.php');
+include_once('config.php');
 ini_set('error_log', 'error_log');
 
 

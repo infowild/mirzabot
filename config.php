@@ -19,17 +19,19 @@ $adminnumber = '{admin_number}';
 $domainhosts = '{domain_name}';
 $usernamebot = '{username_bot}';
 
-function configureCurlTls($handle): void
-{
-    global $tls_ca_bundle;
-    curl_setopt($handle, CURLOPT_SSL_VERIFYPEER, true);
-    curl_setopt($handle, CURLOPT_SSL_VERIFYHOST, 2);
-    if (is_string($tls_ca_bundle) && $tls_ca_bundle !== '') {
-        $caPath = realpath($tls_ca_bundle);
-        if ($caPath === false || !is_file($caPath) || !is_readable($caPath)) {
-            throw new RuntimeException('Configured TLS CA bundle is not readable.');
+if (!function_exists('configureCurlTls')) {
+    function configureCurlTls($handle): void
+    {
+        global $tls_ca_bundle;
+        curl_setopt($handle, CURLOPT_SSL_VERIFYPEER, true);
+        curl_setopt($handle, CURLOPT_SSL_VERIFYHOST, 2);
+        if (is_string($tls_ca_bundle) && $tls_ca_bundle !== '') {
+            $caPath = realpath($tls_ca_bundle);
+            if ($caPath === false || !is_file($caPath) || !is_readable($caPath)) {
+                throw new RuntimeException('Configured TLS CA bundle is not readable.');
+            }
+            curl_setopt($handle, CURLOPT_CAINFO, $caPath);
         }
-        curl_setopt($handle, CURLOPT_CAINFO, $caPath);
     }
 }
 

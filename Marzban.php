@@ -1,5 +1,5 @@
 <?php
-include('config.php');
+include_once('config.php');
 require_once 'request.php';
 date_default_timezone_set('Asia/Tehran');
 #-----------------------------#
