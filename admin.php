@@ -2382,134 +2382,155 @@ elseif ($datain == "systemsms") {
         sendmessage($from_id, $texterror, null, 'HTML');
         return;
     }
-    $createForumTopic = telegram('createForumTopic', [
-        'chat_id' => $text,
-        'name' => $textbotlang['Admin']['adminphp']['btn_report_buy_1']
-    ]);
-    if (!$createForumTopic['ok']) {
-        $texterror = $textbotlang['Admin']['adminphp']['err_admin_bot_group'];
-        sendmessage($from_id, $texterror, null, 'HTML');
-        return;
-    }
-    if ($buyreport != $createForumTopic['result']['message_thread_id']) {
-        update("topicid", "idreport", $createForumTopic['result']['message_thread_id'], "report", "buyreport");
-    }
-    $createForumTopic = telegram('createForumTopic', [
-        'chat_id' => $text,
-        'name' => $textbotlang['Admin']['adminphp']['btn_report_buy_2']
-    ]);
-    if (!$createForumTopic['ok']) {
-        $texterror = $textbotlang['Admin']['adminphp']['err_admin_bot_group'];
-        sendmessage($from_id, $texterror, null, 'HTML');
-        return;
-    }
-    if ($otherservice != $createForumTopic['result']['message_thread_id']) {
-        update("topicid", "idreport", $createForumTopic['result']['message_thread_id'], "report", "otherservice");
-    }
-    $createForumTopic = telegram('createForumTopic', [
-        'chat_id' => $text,
-        'name' => $textbotlang['Admin']['adminphp']['btn_account_report']
-    ]);
-    if (!$createForumTopic['ok']) {
-        $texterror = $textbotlang['Admin']['adminphp']['err_admin_bot_group'];
-        sendmessage($from_id, $texterror, null, 'HTML');
-        return;
-    }
-    if ($reporttest != $createForumTopic['result']['message_thread_id']) {
-        update("topicid", "idreport", $createForumTopic['result']['message_thread_id'], "report", "reporttest");
-    }
-    $createForumTopic = telegram('createForumTopic', [
-        'chat_id' => $text,
-        'name' => $textbotlang['Admin']['adminphp']['btn_report_1']
-    ]);
-    if (!$createForumTopic['ok']) {
-        $texterror = $textbotlang['Admin']['adminphp']['err_admin_bot_group'];
-        sendmessage($from_id, $texterror, null, 'HTML');
-        return;
-    }
-    if ($otherreport != $createForumTopic['result']['message_thread_id']) {
-        update("topicid", "idreport", $createForumTopic['result']['message_thread_id'], "report", "otherreport");
-    }
-    $createForumTopic = telegram('createForumTopic', [
-        'chat_id' => $text,
-        'name' => $textbotlang['Admin']['adminphp']['err_error_report']
-    ]);
-    if (!$createForumTopic['ok']) {
-        $texterror = $textbotlang['Admin']['adminphp']['err_admin_bot_group'];
-        sendmessage($from_id, $texterror, null, 'HTML');
-        return;
-    }
-    if ($errorreport != $createForumTopic['result']['message_thread_id']) {
-        update("topicid", "idreport", $createForumTopic['result']['message_thread_id'], "report", "errorreport");
-    }
-    $createForumTopic = telegram('createForumTopic', [
-        'chat_id' => $text,
-        'name' => $textbotlang['Admin']['adminphp']['btn_report_2']
-    ]);
-    if (!$createForumTopic['ok']) {
-        $texterror = $textbotlang['Admin']['adminphp']['err_admin_bot_group'];
-        sendmessage($from_id, $texterror, null, 'HTML');
-        return;
-    }
+    $reportChatId = (string) ($outputcheck['result']['chat']['id'] ?? $text);
+    $topicLockAcquired = false;
 
-    if ($paymentreports != $createForumTopic['result']['message_thread_id']) {
-        update("topicid", "idreport", $createForumTopic['result']['message_thread_id'], "report", "paymentreport");
-    }
-    $createForumTopic = telegram('createForumTopic', [
-        'chat_id' => $text,
-        'name' => $textbotlang['Admin']['affiliates']['titleTopic']
-    ]);
-    if (!$createForumTopic['ok']) {
-        $texterror = $textbotlang['Admin']['adminphp']['err_admin_bot_group'];
-        sendmessage($from_id, $texterror, null, 'HTML');
-        return;
-    }
+    try {
+        // Serialise report-topic setup so repeated Telegram updates cannot create
+        // the same batch concurrently.
+        $topicLock = $pdo->query("SELECT GET_LOCK('mirzabot_report_topics_setup', 10)");
+        $topicLockAcquired = $topicLock !== false && (int) $topicLock->fetchColumn() === 1;
+        if (!$topicLockAcquired) {
+            error_log('Unable to acquire report topic setup lock.');
+            sendmessage($from_id, $textbotlang['Admin']['adminphp']['err_admin_bot_group'], null, 'HTML');
+            return;
+        }
 
-    if ($porsantreport != $createForumTopic['result']['message_thread_id']) {
-        update("topicid", "idreport", $createForumTopic['result']['message_thread_id'], "report", "porsantreport");
-    }
-    $createForumTopic = telegram('createForumTopic', [
-        'chat_id' => $text,
-        'name' => $textbotlang['Admin']['report']['reportNight']
-    ]);
-    if (!$createForumTopic['ok']) {
-        $texterror = $textbotlang['Admin']['adminphp']['err_admin_bot_group'];
-        sendmessage($from_id, $texterror, null, 'HTML');
-        return;
-    }
+        // Reload these values after acquiring the lock. Another request may have
+        // completed the setup while this request was waiting.
+        $currentSetting = select("setting", "*", null, null, "select", ['cache' => false]);
+        $currentTopicRows = select("topicid", "*", null, null, "fetchAll", ['cache' => false]);
+        $currentTopicIds = [];
+        foreach ($currentTopicRows as $currentTopicRow) {
+            $currentTopicIds[$currentTopicRow['report']] = (int) $currentTopicRow['idreport'];
+        }
 
-    if ($reportnight != $createForumTopic['result']['message_thread_id']) {
-        update("topicid", "idreport", $createForumTopic['result']['message_thread_id'], "report", "reportnight");
-    }
-    $createForumTopic = telegram('createForumTopic', [
-        'chat_id' => $text,
-        'name' => $textbotlang['Admin']['report']['reportCron']
-    ]);
-    if (!$createForumTopic['ok']) {
-        $texterror = $textbotlang['Admin']['adminphp']['err_admin_bot_group'];
-        sendmessage($from_id, $texterror, null, 'HTML');
-        return;
-    }
+        $storedReportChat = trim((string) ($currentSetting['Channel_Report'] ?? ''));
+        $inputReportChat = trim((string) $text);
+        $sameReportChat = $storedReportChat !== '' && (
+            $storedReportChat === $inputReportChat ||
+            $storedReportChat === $reportChatId
+        );
 
-    if ($reportcron != $createForumTopic['result']['message_thread_id']) {
-        update("topicid", "idreport", $createForumTopic['result']['message_thread_id'], "report", "reportcron");
-    }
-    $createForumTopic = telegram('createForumTopic', [
-        'chat_id' => $text,
-        'name' => $textbotlang['Admin']['adminphp']['btn_bot_backup']
-    ]);
-    if (!$createForumTopic['ok']) {
-        $texterror = $textbotlang['Admin']['adminphp']['err_admin_bot_group'];
-        sendmessage($from_id, $texterror, null, 'HTML');
-        return;
-    }
+        // Resolve a previously stored @username or alternate chat identifier to
+        // avoid rebuilding topics when it points to this same group.
+        if (!$sameReportChat && $storedReportChat !== '') {
+            $storedChat = telegram('getChat', ['chat_id' => $storedReportChat]);
+            if (!empty($storedChat['ok'])) {
+                $storedChatId = (string) ($storedChat['result']['id'] ?? '');
+                $sameReportChat = $storedChatId !== '' && $storedChatId === $reportChatId;
+            }
+        }
 
-    if ($reportbackup != $createForumTopic['result']['message_thread_id']) {
-        update("topicid", "idreport", $createForumTopic['result']['message_thread_id'], "report", "backupfile");
+        $reportTopics = [
+            'buyreport' => $textbotlang['Admin']['adminphp']['btn_report_buy_1'],
+            'otherservice' => $textbotlang['Admin']['adminphp']['btn_report_buy_2'],
+            'reporttest' => $textbotlang['Admin']['adminphp']['btn_account_report'],
+            'otherreport' => $textbotlang['Admin']['adminphp']['btn_report_1'],
+            'errorreport' => $textbotlang['Admin']['adminphp']['err_error_report'],
+            'paymentreport' => $textbotlang['Admin']['adminphp']['btn_report_2'],
+            'porsantreport' => $textbotlang['Admin']['affiliates']['titleTopic'],
+            'reportnight' => $textbotlang['Admin']['report']['reportNight'],
+            'reportcron' => $textbotlang['Admin']['report']['reportCron'],
+            'backupfile' => $textbotlang['Admin']['adminphp']['btn_bot_backup'],
+        ];
+        $missingTopics = [];
+
+        if ($sameReportChat) {
+            foreach ($reportTopics as $reportKey => $reportName) {
+                $threadId = (int) ($currentTopicIds[$reportKey] ?? 0);
+                if ($threadId <= 0) {
+                    $missingTopics[$reportKey] = $reportName;
+                    continue;
+                }
+
+                // Bot API has no read-only getForumTopic method. sendChatAction
+                // validates the thread without leaving a permanent message.
+                $topicProbe = telegram('sendChatAction', [
+                    'chat_id' => $reportChatId,
+                    'message_thread_id' => $threadId,
+                    'action' => 'typing',
+                ]);
+                if (!empty($topicProbe['ok'])) {
+                    continue;
+                }
+
+                $probeDescription = strtolower((string) ($topicProbe['description'] ?? ''));
+                $topicIsClosed = str_contains($probeDescription, 'topic_closed') ||
+                    str_contains($probeDescription, 'topic closed') ||
+                    str_contains($probeDescription, 'topic is closed');
+                if ($topicIsClosed) {
+                    // A closed topic still exists, so never replace it silently.
+                    continue;
+                }
+
+                $topicIsMissing = str_contains($probeDescription, 'message thread not found') ||
+                    str_contains($probeDescription, 'forum topic not found') ||
+                    str_contains($probeDescription, 'topic not found');
+                if ($topicIsMissing) {
+                    $missingTopics[$reportKey] = $reportName;
+                    continue;
+                }
+
+                // Permission, connectivity, or an unknown Telegram error must not
+                // be interpreted as a missing topic; doing so would make duplicates.
+                error_log(sprintf(
+                    'Unable to verify report topic %s (%d): %s',
+                    $reportKey,
+                    $threadId,
+                    (string) ($topicProbe['description'] ?? 'unknown Telegram error')
+                ));
+                sendmessage($from_id, $textbotlang['Admin']['adminphp']['err_admin_bot_group'], null, 'HTML');
+                return;
+            }
+        } else {
+            // The administrator selected a genuinely different group. Topic IDs
+            // are scoped to a chat, so the old IDs must not be reused there.
+            $missingTopics = $reportTopics;
+        }
+
+        foreach ($missingTopics as $reportKey => $reportName) {
+            $createForumTopic = telegram('createForumTopic', [
+                'chat_id' => $reportChatId,
+                'name' => $reportName,
+            ]);
+            if (empty($createForumTopic['ok'])) {
+                error_log(sprintf(
+                    'Unable to create report topic %s: %s',
+                    $reportKey,
+                    (string) ($createForumTopic['description'] ?? 'unknown Telegram error')
+                ));
+                sendmessage($from_id, $textbotlang['Admin']['adminphp']['err_admin_bot_group'], null, 'HTML');
+                return;
+            }
+
+            $createdThreadId = (int) ($createForumTopic['result']['message_thread_id'] ?? 0);
+            if ($createdThreadId <= 0) {
+                error_log('Telegram created a report topic without a valid message_thread_id.');
+                sendmessage($from_id, $textbotlang['Admin']['adminphp']['err_admin_bot_group'], null, 'HTML');
+                return;
+            }
+            update("topicid", "idreport", $createdThreadId, "report", $reportKey);
+        }
+
+        // Store Telegram's canonical numeric chat ID so future comparisons are
+        // stable even when the administrator entered an @username.
+        update("setting", "Channel_Report", $reportChatId);
+        sendmessage($from_id, $textbotlang['Admin']['Channel']['setChannelReport'], $setting_panel, 'HTML');
+        step('home', $from_id);
+    } catch (Throwable $topicSetupError) {
+        error_log('Report topic setup failed: ' . $topicSetupError->getMessage());
+        sendmessage($from_id, $textbotlang['Admin']['adminphp']['err_admin_bot_group'], null, 'HTML');
+        return;
+    } finally {
+        if ($topicLockAcquired) {
+            try {
+                $pdo->query("SELECT RELEASE_LOCK('mirzabot_report_topics_setup')");
+            } catch (Throwable $topicUnlockError) {
+                error_log('Unable to release report topic setup lock: ' . $topicUnlockError->getMessage());
+            }
+        }
     }
-    sendmessage($from_id, $textbotlang['Admin']['Channel']['setChannelReport'], $setting_panel, 'HTML');
-    update("setting", "Channel_Report", $text);
-    step('home', $from_id);
 } elseif ($text == $textbotlang['keyboard']['shopSettings'] && $adminrulecheck['rule'] == "administrator") {
     sendmessage($from_id, $textbotlang['users']['selectoption'], $shopkeyboard, 'HTML');
 } elseif ($text == $textbotlang['keyboard']['addProduct'] && $adminrulecheck['rule'] == "administrator") {
