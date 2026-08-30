@@ -5,21 +5,49 @@ require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../botapi.php';
 require_once __DIR__ . '/../function.php';
 $textbotlang = languagechange();
-if(!is_file(__DIR__ . '/info'))return;
-if(!is_file(__DIR__ . '/users.json'))return;
+
+$infoFile = __DIR__ . '/info';
+$usersFile = __DIR__ . '/users.json';
+$cancelFile = __DIR__ . '/sendmessage.cancel';
+$lockFile = __DIR__ . '/sendmessage.lock';
+
+// Only one worker may read/update the queue at a time. This also prevents a
+// cancelled queue from being written back by an older overlapping process.
+$lockHandle = fopen($lockFile, 'c');
+if ($lockHandle === false || !flock($lockHandle, LOCK_EX | LOCK_NB)) {
+    return;
+}
+
+if (is_file($cancelFile)) {
+    @unlink($usersFile);
+    @unlink($infoFile);
+    @unlink($cancelFile);
+    return;
+}
+
+if(!is_file($infoFile))return;
+if(!is_file($usersFile))return;
 
 
-$userid = json_decode(file_get_contents(__DIR__ . '/users.json'));
-if(is_file(__DIR__ . '/info')){
-$info = json_decode(file_get_contents(__DIR__ . '/info'),true);
+$userid = json_decode(file_get_contents($usersFile));
+if (!is_array($userid)) {
+    error_log('Invalid broadcast queue JSON: ' . $usersFile);
+    return;
+}
+if(is_file($infoFile)){
+$info = json_decode(file_get_contents($infoFile),true);
+if (!is_array($info)) {
+    error_log('Invalid broadcast metadata JSON: ' . $infoFile);
+    return;
+}
 }
 $count = 0;
 if(count($userid) == 0){
     if(isset($info['id_admin'])){
     deletemessage($info['id_admin'], $info['id_message']);
     sendmessage($info['id_admin'], $textbotlang['hardcoded']['bulkMessageDone'], null, 'HTML');
-    unlink(__DIR__ . '/info');
-    unlink(__DIR__ . '/users.json');
+    unlink($infoFile);
+    unlink($usersFile);
     }
     return;
     
@@ -76,10 +104,15 @@ $keyboardaddbalance = json_encode([
             ],
         ]
     ]);
-for ($i = 0; $i < 20; $i++) {
-    $iduser = $userid[$i];
-    unset($userid[$i]);
-    $userid = array_values($userid);
+for ($i = 0, $batchSize = min(20, count($userid)); $i < $batchSize; $i++) {
+    if (is_file($cancelFile)) {
+        @unlink($usersFile);
+        @unlink($infoFile);
+        @unlink($cancelFile);
+        return;
+    }
+
+    $iduser = array_shift($userid);
     if ($info['type'] == "unpinmessage") {
         unpinmessage($iduser->id);
     } elseif ($info['type'] == "sendmessage" or $info['type'] == "xdaynotmessage") {
@@ -120,4 +153,12 @@ for ($i = 0; $i < 20; $i++) {
     }
 }
 
-file_put_contents(__DIR__ . '/users.json', json_encode($userid, true));
+if (!is_file($cancelFile)) {
+    $temporaryFile = $usersFile . '.tmp';
+    file_put_contents($temporaryFile, json_encode($userid), LOCK_EX);
+    rename($temporaryFile, $usersFile);
+} else {
+    @unlink($usersFile);
+    @unlink($infoFile);
+    @unlink($cancelFile);
+}

@@ -278,6 +278,7 @@ fi
 cat >/etc/cron.d/mirzabot <<EOF
 SHELL=/bin/sh
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+* * * * * www-data flock -n /run/lock/mirzabot-sendmessage.lock /usr/bin/php8.2 /var/www/mirzabot/cronbot/sendmessage.php >/dev/null 2>&1
 * * * * * www-data flock -n /run/lock/mirzabot-notifications.lock php /var/www/mirzabot/cronbot/NoticationsService.php >/dev/null 2>&1
 */5 * * * * www-data flock -n /run/lock/mirzabot-uptime-panel.lock php /var/www/mirzabot/cronbot/uptime_panel.php >/dev/null 2>&1
 */5 * * * * www-data flock -n /run/lock/mirzabot-uptime-node.lock php /var/www/mirzabot/cronbot/uptime_node.php >/dev/null 2>&1

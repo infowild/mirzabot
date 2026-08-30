@@ -1119,6 +1119,7 @@ elseif ($datain == "systemsms") {
             'type' => "unpinmessage",
             "id_message" => $message_id['result']['message_id']
         ));
+        @unlink('cronbot/sendmessage.cancel');
         file_put_contents("cronbot/users.json", $userlist);
         file_put_contents('cronbot/info', $dataunpin);
     } elseif ($typeservice == "sendmessage") {
@@ -1168,6 +1169,7 @@ elseif ($datain == "systemsms") {
             "pingmessage" => $userdata['typepinmessage'],
             "btnmessage" => $userdata['btntypemessage']
         ));
+        @unlink('cronbot/sendmessage.cancel');
         file_put_contents("cronbot/users.json", $userslist);
         file_put_contents('cronbot/info', $data);
     } elseif ($typeservice == "forwardmessage") {
@@ -1216,6 +1218,7 @@ elseif ($datain == "systemsms") {
             "message" => $userdata['message'],
             "pingmessage" => $userdata['typepinmessage'],
         ));
+        @unlink('cronbot/sendmessage.cancel');
         file_put_contents("cronbot/users.json", $userslist);
         file_put_contents('cronbot/info', $data);
     } elseif ($typeservice == "xdaynotmessage") {
@@ -1276,13 +1279,16 @@ elseif ($datain == "systemsms") {
             "pingmessage" => $userdata['typepinmessage'],
             "btnmessage" => $userdata['btntypemessage']
         ));
+        @unlink('cronbot/sendmessage.cancel');
         file_put_contents("cronbot/users.json", $userslist);
         file_put_contents('cronbot/info', $data);
     }
 } elseif ($datain == "cancel_sendmessage") {
-    file_put_contents('users.json', json_encode(array()));
-    unlink('cronbot/users.json');
-    unlink('cronbot/info');
+    // Mark cancellation first. A worker that is already running will see this
+    // marker and must not recreate the queue after it has been removed.
+    file_put_contents('cronbot/sendmessage.cancel', (string) time(), LOCK_EX);
+    @unlink('cronbot/users.json');
+    @unlink('cronbot/info');
     deletemessage($from_id, $message_id);
     sendmessage($from_id, $textbotlang['Admin']['adminphp']['btn_message_2'], null, 'HTML');
 } elseif (preg_match('/sendmessageuser_(\w+)/', $datain, $dataget)) {
@@ -1309,6 +1315,7 @@ elseif ($datain == "systemsms") {
         return;
     }
     $textsendadmin = sprintf($textbotlang['Admin']['adminphp']['msg_admin_message'], $userdata['text']);
+    $sendResult = null;
     if (intval($text) == "1") {
         $Response = json_encode([
             'inline_keyboard' => [
@@ -1318,7 +1325,7 @@ elseif ($datain == "systemsms") {
             ]
         ]);
         if ($userdata['type'] == "photo") {
-            telegram('sendphoto', [
+            $sendResult = telegram('sendphoto', [
                 'chat_id' => $userdata['iduser'],
                 'photo' => $userdata['photoid'],
                 'caption' => $textsendadmin,
@@ -1326,19 +1333,35 @@ elseif ($datain == "systemsms") {
                 'parse_mode' => "HTML",
             ]);
         } else {
-            sendmessage($userdata['iduser'], $textsendadmin, $Response, 'HTML');
+            $sendResult = sendmessage($userdata['iduser'], $textsendadmin, $Response, 'HTML');
         }
     } else {
         if ($userdata['type'] == "photo") {
-            telegram('sendphoto', [
+            $sendResult = telegram('sendphoto', [
                 'chat_id' => $userdata['iduser'],
                 'photo' => $userdata['photoid'],
                 'caption' => $textsendadmin,
                 'parse_mode' => "HTML",
             ]);
         } else {
-            sendmessage($userdata['iduser'], $textsendadmin, null, 'HTML');
+            $sendResult = sendmessage($userdata['iduser'], $textsendadmin, null, 'HTML');
         }
+    }
+    if (!is_array($sendResult) || empty($sendResult['ok'])) {
+        $failureReason = htmlspecialchars(
+            (string) ($sendResult['description'] ?? 'Unknown Telegram error'),
+            ENT_QUOTES | ENT_SUBSTITUTE,
+            'UTF-8'
+        );
+        error_log('Direct admin message failed: ' . ($sendResult['description'] ?? 'Unknown Telegram error'));
+        sendmessage(
+            $from_id,
+            "❌ ارسال پیام تکی ناموفق بود.\n<code>{$failureReason}</code>",
+            $keyboardadmin,
+            'HTML'
+        );
+        step('home', $from_id);
+        return;
     }
     sendmessage($from_id, $textbotlang['Admin']['manageUser']['messageSent'], $keyboardadmin, 'HTML');
     step('home', $from_id);
@@ -3119,6 +3142,7 @@ elseif ($datain == "systemsms") {
             "pingmessage" => "no",
             "btnmessage" => "start"
         ));
+        @unlink('cronbot/sendmessage.cancel');
         file_put_contents("cronbot/users.json", json_encode($Balance_user));
         file_put_contents('cronbot/info', $data);
     }
