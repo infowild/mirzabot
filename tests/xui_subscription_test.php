@@ -5,8 +5,9 @@ set_error_handler(function ($severity, $message, $file, $line) {
     throw new ErrorException($message, 0, $severity, $file, $line);
 });
 $baseline = in_array('--baseline', $argv, true);
+$sourceRoot = getenv('MIRZABOT_TEST_SOURCE_DIR') ?: __DIR__ . '/..';
 foreach (['x-ui_single.php', 'panels.php'] as $file) {
-    $source = $baseline ? shell_exec('git show HEAD:' . $file) : file_get_contents(__DIR__ . '/../' . $file);
+    $source = $baseline ? shell_exec('git show HEAD:' . $file) : file_get_contents($sourceRoot . '/' . $file);
     $source = preg_replace('/^require_once .*;\s*$/m', '', $source);
     $source = preg_replace('/^ini_set\(.*;\s*$/m', '', $source);
     eval(substr($source, 5));
@@ -40,7 +41,7 @@ class CurlRequest {
     function __construct($url) { $this->url = $url; }
     function setHeaders($headers) {}
     function get() {
-        global $client, $searchItems, $readbackFails, $posts, $searchPages, $apiLinksFail, $publicBody;
+        global $client, $searchItems, $readbackFails, $posts, $searchPages, $apiLinksFail, $publicBody, $searchUnavailable;
         if (str_contains($this->url, '/clients/get/')) {
             if ($readbackFails && $posts) return ['status' => 503, 'body' => '', 'error' => ''];
             return response(['success' => true, 'obj' => $client]);
@@ -49,6 +50,7 @@ class CurlRequest {
             return response(['success' => true, 'obj' => ['total' => 999, 'expiryTime' => 0]]);
         }
         if (str_contains($this->url, '/clients/search?')) {
+            if ($searchUnavailable) return response(['success' => false], 404);
             parse_str(parse_url($this->url, PHP_URL_QUERY), $query);
             return response(['success' => true, 'obj' => ['items' => $searchPages[$query['page']] ?? $searchItems]]);
         }
@@ -74,7 +76,7 @@ function response($body, $status = 200) {
 }
 function resetScenario() {
     global $panel, $invoices, $client, $searchItems, $posts, $writes,
-        $postStatus, $postSuccess, $readbackFails, $pdo, $domainhosts, $searchPages, $apiLinksFail, $publicBody;
+        $postStatus, $postSuccess, $readbackFails, $pdo, $domainhosts, $searchPages, $apiLinksFail, $publicBody, $searchUnavailable;
     $pdo = new FakeDatabase();
     $domainhosts = 'bot.example:8443';
     $panel = ['name_panel' => 'restored', 'type' => 'x-ui_single',
@@ -93,12 +95,20 @@ function resetScenario() {
     $searchPages = [];
     $apiLinksFail = false;
     $publicBody = '';
+    $searchUnavailable = false;
 }
 $manager = new ManagePanel();
 resetScenario();
+$client = ['client' => $client, 'inboundIds' => [7]];
+$searchUnavailable = true;
+$result = $manager->DataUser('restored', 'legacy');
+check(($result['subscription_url'] ?? '') === $panel['linksubx'] . 'panel-current', 'reported nested obj.client with search 404 must resolve panel ID');
+check(!$posts && !$writes, 'reading nested client must not change panel or database');
+
+resetScenario();
 $result = $manager->DataUser('restored', 'legacy');
 check($result['subscription_url'] === $panel['linksubx'] . 'panel-current', 'panel ID must override stale invoice ID');
-check(count($writes) === 1 && $writes[0][':location'] === 'restored', 'cache update must be scoped to location');
+check(!$writes, 'service lookup must not update database');
 check(!$posts, 'existing clients must not be modified');
 
 resetScenario();
@@ -116,7 +126,7 @@ check(!$posts, 'search-resolved client must not be modified');
 resetScenario();
 unset($client['subId']);
 $result = $manager->DataUser('restored', 'legacy');
-check($result['status'] === 'Unsuccessful' && !$posts && !$writes, 'unknown ID must not cause guessed links or writes');
+check($result['status'] !== 'Unsuccessful' && $result['subscription_url'] === '' && !$posts && !$writes, 'unknown ID must not block service details or cause guessed links');
 
 foreach ([503, 200] as $status) {
     resetScenario();
@@ -124,22 +134,21 @@ foreach ([503, 200] as $status) {
     $postStatus = $status;
     $postSuccess = false;
     $result = $manager->DataUser('restored', 'legacy');
-    check($result['status'] === 'Unsuccessful' && !$writes, 'failed update must not be cached or delivered');
+    check($result['status'] !== 'Unsuccessful' && $result['subscription_url'] === '' && !$posts && !$writes, 'empty ID must not cause automatic updates');
 }
 
 resetScenario();
 $client['subId'] = '';
 $readbackFails = true;
 $result = $manager->DataUser('restored', 'legacy');
-check($result['status'] === 'Unsuccessful' && !$writes, 'failed readback must not deliver unverified ID');
+check($result['status'] !== 'Unsuccessful' && $result['subscription_url'] === '' && !$posts && !$writes, 'reading must never initiate migration');
 
 resetScenario();
 $client['subId'] = '';
 $client['enable'] = false;
 $result = $manager->DataUser('restored', 'legacy');
-check(str_ends_with($result['subscription_url'], '/' . $client['subId']), 'migration must deliver read-back ID');
-check($posts[0]['enable'] === false && $posts[0]['totalGB'] === 123 &&
-    $posts[0]['expiryTime'] === -86400000 && $posts[0]['comment'] === 'preserve-me', 'migration must preserve original client settings');
+check($result['subscription_url'] === '' && !$posts && !$writes && $client['enable'] === false &&
+    $client['totalGB'] === 123 && $client['comment'] === 'preserve-me', 'empty ID on disabled client must preserve settings without writes');
 
 resetScenario();
 $client = [['email' => 'someone-else', 'subId' => 'wrong'], $client];
@@ -175,5 +184,5 @@ check($result['links'] === [], 'HTML must not be delivered as configuration');
 resetScenario();
 $panel['linksubx'] = '';
 $result = $manager->DataUser('restored', 'legacy');
-check($result['status'] === 'Unsuccessful' && !$posts && !$writes, 'missing subscription domain must not create a relative URL');
-echo "PASS: 15 offline subscription regression scenarios\n";
+check($result['status'] !== 'Unsuccessful' && $result['subscription_url'] === '' && !$posts && !$writes, 'missing domain must not block service details or create relative URL');
+echo "PASS: 16 offline subscription regression scenarios\n";

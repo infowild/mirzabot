@@ -1133,7 +1133,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
     $marzban_list_get = select("marzban_panel", "*", "name_panel", $nameloc['Service_location'], "select");
     $Check_token = token_panel($marzban_list_get['url_panel'], $marzban_list_get['username_panel'], $marzban_list_get['password_panel']);
     $DataUserOut = $ManagePanel->DataUser($nameloc['Service_location'], $nameloc['username']);
-    if ($DataUserOut['status'] == "Unsuccessful") {
+    if ($DataUserOut['status'] == "Unsuccessful" || empty($DataUserOut['subscription_url'])) {
         sendmessage($from_id, $textbotlang['users']['status']['error'], null, 'html');
         return;
     }

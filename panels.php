@@ -565,20 +565,17 @@ class ManagePanel
             }
             $user_data = $user_data['obj'];
             $subscriptionBase = rtrim(trim($Get_Data_Panel['linksubx'] ?? ''), '/');
-            if (!filter_var($subscriptionBase, FILTER_VALIDATE_URL)) {
-                return ['status' => 'Unsuccessful', 'msg' => 'Configure the current public subscription URL for this panel'];
+            $subscriptionError = '';
+            $validSubscriptionBase = filter_var($subscriptionBase, FILTER_VALIDATE_URL) &&
+                in_array(parse_url($subscriptionBase, PHP_URL_SCHEME), ['http', 'https'], true);
+            if (!$validSubscriptionBase) {
+                $subscriptionError = 'Configure the current public subscription URL for this panel';
             }
             $subscription = xui_resolve_subscription_id($name_panel, $username, $user_data);
             if (!empty($subscription['error'])) {
-                return ['status' => 'Unsuccessful', 'msg' => $subscription['error']];
+                $subscriptionError = $subscription['error'];
             }
             $effectiveSubId = $subscription['subId'];
-            if ($xui_invoice_row && ($xui_invoice_row['uuid'] ?? '') !== $effectiveSubId) {
-                // Do not put subscription credentials in update()'s audit log.
-                $stmt = $pdo->prepare('UPDATE invoice SET uuid = :subid WHERE username = :username AND Service_location = :location');
-                $stmt->execute([':subid' => $effectiveSubId, ':username' => $username, ':location' => $name_panel]);
-                clearSelectCache('invoice');
-            }
             $expire = $user_data['expiryTime'] / 1000;
             if ($user_data['enable']) {
                 $user_data['enable'] = "active";
@@ -597,9 +594,10 @@ class ManagePanel
                 $user_data['enable'] = "on_hold";
                 $expire = 0;
             }
-            $linksub = $subscriptionBase . '/' . rawurlencode($effectiveSubId);
-            $links_user = get_client_sublinks($Get_Data_Panel['name_panel'], $effectiveSubId);
-            if ($inoice != false)
+            $linksub = $validSubscriptionBase && $effectiveSubId !== '' ?
+                $subscriptionBase . '/' . rawurlencode($effectiveSubId) : '';
+            $links_user = $effectiveSubId !== '' ? get_client_sublinks($Get_Data_Panel['name_panel'], $effectiveSubId) : [];
+            if ($inoice != false && $effectiveSubId !== '')
                 $linksub = "https://$domainhosts/sub/" . $inoice['id_invoice'];
             $user_data['lastOnline'] = $user_data['lastOnline'] == 0 ? "offline" : (new DateTime('@' . ($user_data['lastOnline'] / 1000)))->format('Y-m-d H:i:s');
             $Output = array(
@@ -612,6 +610,7 @@ class ManagePanel
                 'links' => $links_user,
                 'subscription_url' => $linksub,
                 'subId' => $effectiveSubId,
+                'subscription_error' => $subscriptionError,
                 'sub_updated_at' => null,
                 'sub_last_user_agent' => null,
             );

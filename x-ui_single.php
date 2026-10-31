@@ -41,6 +41,12 @@ function get_clinets($username, $namepanel)
 
     // Handle both single-object and array-of-objects in obj
     $c = $data_get['obj'];
+    // This panel returns obj.client plus sibling metadata, not a flat client.
+    if (is_array($c) && isset($c['client']) && is_array($c['client'])) {
+        $wrapper = $c;
+        $c = $wrapper['client'];
+        $c['inboundIds'] = $c['inboundIds'] ?? $wrapper['inboundIds'] ?? [];
+    }
     if (isset($c[0]) && is_array($c[0])) {
         $matches = array_values(array_filter($c, function ($item) use ($username) {
             return is_array($item) && ($item['email'] ?? '') === $username;
@@ -120,7 +126,6 @@ function get_clinets($username, $namepanel)
         'down'       => $down,
         'subId'      => $subId,
         'subIdKnown' => $subIdKnown,
-        'subscriptionClient' => $c,
         'lastOnline' => 0,
         'inboundId'  => isset($c['inboundIds'][0]) ? intval($c['inboundIds'][0]) : 0,
         'tgId'       => $c['tgId']       ?? 0,
@@ -147,36 +152,11 @@ function xui_invoice_for_location($username, $namepanel)
 
 function xui_resolve_subscription_id($namepanel, $username, array $client)
 {
-    if (!empty($client['subId'])) {
+    if (is_string($client['subId'] ?? null) && $client['subId'] !== '') {
         return ['subId' => $client['subId']];
     }
-    // A missing field/failed lookup is not evidence that the panel has no ID.
-    if (empty($client['subIdKnown'])) {
-        return ['error' => 'Panel did not return a subscription ID; no changes were made'];
-    }
-    $candidate = bin2hex(random_bytes(8));
-    $original = $client['subscriptionClient'] ?? [];
-    $response = updateClient($namepanel, $username, array_merge($original, [
-        'email' => $username,
-        'enable' => $original['enable'] ?? $client['enable'],
-        'totalGB' => $original['totalGB'] ?? $client['total'],
-        'expiryTime' => $original['expiryTime'] ?? $client['expiryTime'],
-        'subId' => $candidate,
-        'tgId' => $client['tgId'] ?? 0,
-        'limitIp' => $client['limitIp'] ?? 0,
-    ]));
-    $body = json_decode($response['body'] ?? '', true);
-    if (!empty($response['error']) || ($response['status'] ?? 0) != 200 || empty($body['success'])) {
-        return ['error' => 'Panel rejected subscription ID update'];
-    }
-    // Read back even after success: only deliver an ID actually stored by the panel.
-    $verified = get_clinets($username, $namepanel);
-    $body = json_decode($verified['body'] ?? '', true);
-    if (!empty($verified['error']) || ($verified['status'] ?? 0) != 200 ||
-        empty($body['success']) || empty($body['obj']['subId'])) {
-        return ['error' => 'Could not verify subscription ID after update'];
-    }
-    return ['subId' => $body['obj']['subId']];
+    // Reading service details must never rotate IDs or modify client settings.
+    return ['subId' => '', 'error' => 'Panel did not return a subscription ID'];
 }
 
 function addClient($namepanel, $usernameac, $Expire, $Total, $Uuid, $Flow, $subid, $inboundid, $name_product, $note = "")

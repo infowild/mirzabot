@@ -1,6 +1,15 @@
 # MirzaBot project handoff
 
-Updated: 2026-08-30
+Updated: 2026-10-31
+
+## Current subscription repair (supersedes historical task below)
+
+- Production was restored to the `fdced63` versions of `panels.php` and `x-ui_single.php` after the first repair broke service detail lookup. The user confirmed lookup works again.
+- Read-only production diagnostics confirmed client data is nested under `obj.client`, `/clients/search` returns 404, and the invoice subscription ID differs from the panel's actual ID. The actual ID returns HTTP 200 and one config through both subLinks and the configured public subscription base. Do not record actual subscription IDs or URLs here.
+- Local uncommitted corrections unwrap `obj.client`, prefer panel IDs, scope invoice selection to location, remove automatic subscription-ID migration and invoice writes from DataUser, and keep service details available when subscription settings are missing. The explicit subscription delivery path rejects an empty URL.
+- 16 offline scenarios pass with PHP 8.2, including the nested response/search-404 regression. All changed PHP files pass lint.
+- A patch against `fdced63` was applied to an isolated checkout and the resulting files passed the same 16 tests and lint. Production application of this revised patch has not yet been confirmed. User prefers terminal commands; take a recoverable backup and lint staged files before replacement.
+- The following older broadcast handoff is historical. Do not replay messages or alter cron during this subscription repair.
 
 ## Repository
 
