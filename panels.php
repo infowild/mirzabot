@@ -387,13 +387,10 @@ class ManagePanel
         } else {
             $inoice = false;
         }
-        // For x-ui_single: always read stored subId from invoice regardless of subvip
-        $xui_stored_subid = null;
+        // Usernames can exist in more than one restored panel/location.
         if ($Get_Data_Panel['type'] == "x-ui_single") {
-            $xui_invoice_row = select("invoice", "*", "username", $username, "select");
-            if ($xui_invoice_row && !empty($xui_invoice_row['uuid'])) {
-                $xui_stored_subid = $xui_invoice_row['uuid'];
-            }
+            $xui_invoice_row = xui_invoice_for_location($username, $name_panel);
+            $inoice = ($Get_Data_Panel['subvip'] ?? '') == 'onsubvip' ? $xui_invoice_row : false;
         }
         if ($Get_Data_Panel['type'] == "marzban") {
             $UsernameData = getuser($username, $Get_Data_Panel['name_panel']);
@@ -567,6 +564,21 @@ class ManagePanel
                 );
             }
             $user_data = $user_data['obj'];
+            $subscriptionBase = rtrim(trim($Get_Data_Panel['linksubx'] ?? ''), '/');
+            if (!filter_var($subscriptionBase, FILTER_VALIDATE_URL)) {
+                return ['status' => 'Unsuccessful', 'msg' => 'Configure the current public subscription URL for this panel'];
+            }
+            $subscription = xui_resolve_subscription_id($name_panel, $username, $user_data);
+            if (!empty($subscription['error'])) {
+                return ['status' => 'Unsuccessful', 'msg' => $subscription['error']];
+            }
+            $effectiveSubId = $subscription['subId'];
+            if ($xui_invoice_row && ($xui_invoice_row['uuid'] ?? '') !== $effectiveSubId) {
+                // Do not put subscription credentials in update()'s audit log.
+                $stmt = $pdo->prepare('UPDATE invoice SET uuid = :subid WHERE username = :username AND Service_location = :location');
+                $stmt->execute([':subid' => $effectiveSubId, ':username' => $username, ':location' => $name_panel]);
+                clearSelectCache('invoice');
+            }
             $expire = $user_data['expiryTime'] / 1000;
             if ($user_data['enable']) {
                 $user_data['enable'] = "active";
@@ -585,27 +597,7 @@ class ManagePanel
                 $user_data['enable'] = "on_hold";
                 $expire = 0;
             }
-            // Prefer invoice-stored subId over API response (API may not return subId field)
-            $effectiveSubId = !empty($xui_stored_subid) ? $xui_stored_subid : ($user_data['subId'] ?? '');
-            // One-time lazy migration: generate subId, push to panel, persist to invoice
-            if (empty($effectiveSubId)) {
-                $effectiveSubId = bin2hex(random_bytes(8));
-                $update_payload_xui = [
-                    'email'      => $username,
-                    'enable'     => ($user_data['enable'] !== 'disabled'),
-                    'totalGB'    => $user_data['total'],
-                    'expiryTime' => $user_data['expiryTime'],
-                    'subId'      => $effectiveSubId,
-                    'tgId'       => $user_data['tgId'] ?? 0,
-                    'limitIp'    => $user_data['limitIp'] ?? 0,
-                ];
-                updateClient($Get_Data_Panel['name_panel'], $username, $update_payload_xui);
-                $xui_inv_save = select("invoice", "*", "username", $username, "select");
-                if ($xui_inv_save && !empty($xui_inv_save['id_invoice'])) {
-                    update("invoice", "uuid", $effectiveSubId, "id_invoice", $xui_inv_save['id_invoice']);
-                }
-            }
-            $linksub = rtrim($Get_Data_Panel['linksubx'], '/') . "/{$effectiveSubId}";
+            $linksub = $subscriptionBase . '/' . rawurlencode($effectiveSubId);
             $links_user = get_client_sublinks($Get_Data_Panel['name_panel'], $effectiveSubId);
             if ($inoice != false)
                 $linksub = "https://$domainhosts/sub/" . $inoice['id_invoice'];
@@ -619,6 +611,7 @@ class ManagePanel
                 'used_traffic' => $user_data['up'] + $user_data['down'],
                 'links' => $links_user,
                 'subscription_url' => $linksub,
+                'subId' => $effectiveSubId,
                 'sub_updated_at' => null,
                 'sub_last_user_agent' => null,
             );

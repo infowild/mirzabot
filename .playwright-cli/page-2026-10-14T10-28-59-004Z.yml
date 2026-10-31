@@ -1,0 +1,322 @@
+- generic [active] [ref=e1]:
+  - alert [ref=e2]
+  - generic [ref=e4]:
+    - banner [ref=e5]:
+      - generic [ref=e6]:
+        - link [ref=e7] [cursor=pointer]:
+          - /url: /
+          - img "site-logo" [ref=e8]
+        - generic [ref=e10]:
+          - link [ref=e11] [cursor=pointer]:
+            - /url: /
+            - listitem [ref=e12]: صفحه اصلی
+          - link [ref=e13] [cursor=pointer]:
+            - /url: /#guide
+            - listitem [ref=e14]: راهنما
+          - link [ref=e15] [cursor=pointer]:
+            - /url: /#notices
+            - listitem [ref=e16]: اخبار
+          - link [ref=e17] [cursor=pointer]:
+            - /url: /inquiry
+            - listitem [ref=e18]: استعلام کد رهگیری
+      - button "ورود" [ref=e21] [cursor=pointer]
+    - generic [ref=e24]:
+      - generic [ref=e26]:
+        - generic [ref=e27]:
+          - generic [ref=e28]:
+            - heading "سامانه ثبت معاملات املاک و مستغلات کشور" [level=2] [ref=e29]
+            - generic [ref=e31]:
+              - heading "سامانه خودنویس" [level=1] [ref=e32]
+              - heading "کد رهگیری رایگان" [level=2] [ref=e33]
+          - paragraph [ref=e34]: سامانه خودنویس با ارائه امکان ثبت قراردادهای املاک و مستغلات با سند رسمی تک‌برگ و دریافت کد رهگیری رایگان، تجربه‌ای نوین و آسان را برای طرفین قرارداد و مشاورین املاک رقم زده‌است. همچنین کد رهگیری انواع قراردادهای ثبت‌شده در همین سامانه، قابل استعلام می‌باشد.
+        - generic [ref=e35]:
+          - button "ایجاد قرارداد" [ref=e36] [cursor=pointer]
+          - button "تکمیل و امضای قرارداد" [ref=e38] [cursor=pointer]
+        - link [ref=e40] [cursor=pointer]:
+          - /url: /#contractManagement
+          - img "plus-Icon" [ref=e41]
+      - generic [ref=e42]:
+        - generic [ref=e43]:
+          - heading "مدیریت قراردادها و استعلام کد رهگیری" [level=3] [ref=e46]
+          - generic [ref=e47]:
+            - generic [ref=e48]:
+              - generic [ref=e49]:
+                - generic [ref=e50]:
+                  - img "Icon" [ref=e51]
+                  - img "Icon" [ref=e53]
+                  - generic [ref=e54]: پنل عمومی
+                - paragraph [ref=e55]: در پنل خودنویس، هر دو طرف قرارداد می‌توانند به عنوان ایجادکننده قرارداد عمل کنند. علاوه بر این، طرفین و شاهدین قرارداد می‌توانند قراردادهای ایجاد شده را مدیریت نمایند.
+              - button "ورود به پنل عمومی" [ref=e63] [cursor=pointer]
+            - generic [ref=e71]:
+              - generic [ref=e72]:
+                - generic [ref=e73]:
+                  - img "Icon" [ref=e74]
+                  - img "Icon" [ref=e76]
+                  - generic [ref=e77]: پنل مشاور املاک
+                - paragraph [ref=e78]: مشاورین املاکی که هویتشان در سایت نوین اصناف تأیید شده است، با دریافت تأییدیه از طرفین قرارداد، مجاز به ثبت قرارداد از طرف آن‌ها هستند.
+              - link "ورود به پنل مشاور املاک" [ref=e86] [cursor=pointer]:
+                - /url: https://sso.my.gov.ir/oauth2/authorize?response_type=code&scope=openid profile&client_id=srem.mrud&redirect_uri=https://srem.mrud.ir&state=adviserLogin
+            - generic [ref=e93]:
+              - generic [ref=e94]:
+                - generic [ref=e95]:
+                  - img "Icon" [ref=e96]
+                  - img "Icon" [ref=e98]
+                  - generic [ref=e99]: استعلام کد رهگیری
+                - paragraph [ref=e100]: با وارد کردن کد رهگیری 13 رقمی صادر شده برای قرارداد و کد ملی (یا شناسه ملی شرکت) یکی از طرفین قرارداد، می‌توانید اصالت قرارداد را بررسی کنید.
+              - link "استعلام کد رهگیری" [ref=e108] [cursor=pointer]:
+                - /url: /inquiry
+        - generic [ref=e115]:
+          - img "Icon" [ref=e117]
+          - generic [ref=e119]:
+            - generic [ref=e120]: اطلاعیه خودنویس
+            - generic [ref=e124]:
+              - heading "قابل توجه کلیه کاربران و مشاوران املاک سراسر کشور؛" [level=2] [ref=e125]
+              - paragraph [ref=e126]:
+                - text: استفاده از سامانه خودنویس،
+                - strong [ref=e127]: نیازمند نصب هیچگونه نرم افزاری نیست.
+                - text: صرفا با ورود به درگاه سامانه خودنویس به آدرس
+                - strong [ref=e128]:
+                  - link "khodnevis.mrud.ir" [ref=e129] [cursor=pointer]:
+                    - /url: http://khodnevis.mrud.ir
+                - text: میتوانید از امکانات سامانه بهره مند شوید. افرادی که به بهانه نصب
+                - strong [ref=e130]: نرم افزار سامانه خودنویس
+                - text: از شما تقاضای وجه میکنند، کلاهبردار هستند و میتوانید آنها را به مراجع قضایی معرفی نمایید.
+              - paragraph [ref=e131]:
+                - text: فرآیند ثبت قرارداد و صدور کد رهگیری در سامانه خودنویس به صورت
+                - strong [ref=e132]: رایگان
+                - text: انجام می‌شود و هیچ مبلغی از شما درخواست نخواهد شد، اما حق الزحمه مشاورین املاک و یا کافی نت و ... باید به صورت عرفی پرداخت شود. لطفا قبل از مراجعه و بازدید از ملک و تایید اسناد آن یا امضای قرارداد و دریافت کد رهگیری، هیچ گونه وجهی پرداخت نفرمایید. بهتر است برای ایجاد قرارداد از
+                - strong [ref=e133]: کامپیوتر یا لپ‌تاپ
+                - text: به جای تلفن همراه استفاده کنید. جهت مشاهده اخبار و آموزش‌های سامانه می‌توانید به کانال این سامانه در شبکه‌های اجتماعی (بله و ایتا) به آدرس
+                - link "khodnevis_mrud" [ref=e134] [cursor=pointer]:
+                  - /url: https://zil.ink/khodnevis_mrud
+                - text: مراجعه نمایید.
+            - button [ref=e136] [cursor=pointer]:
+              - generic [ref=e137]:
+                - text: نکات بیشتر
+                - img "leftIcon" [ref=e138]
+        - generic [ref=e139]:
+          - generic [ref=e140]: راهنمای سامانه
+          - generic [ref=e143]:
+            - generic [ref=e144]:
+              - generic [ref=e145]:
+                - generic [ref=e146]: راهنمای کار با سامانه
+                - generic [ref=e148]:
+                  - generic [ref=e150]:
+                    - img "guide" [ref=e152]
+                    - iframe [ref=e154]:
+                      - button "video poster khodnevis_mrud 15:20" [ref=f1e5] [cursor=pointer]:
+                        - img "video poster" [ref=f1e6]
+                        - generic [ref=f1e10]:
+                          - link [ref=f1e11]:
+                            - /url: https://www.aparat.com/khodnevis_mrud
+                            - img "khodnevis_mrud" [ref=f1e12]
+                          - generic [ref=f1e13]: 15:20
+                    - iframe [ref=e156]:
+                      - button "video poster khodnevis_mrud 03:30" [ref=f2e5] [cursor=pointer]:
+                        - img "video poster" [ref=f2e6]
+                        - generic [ref=f2e10]:
+                          - link [ref=f2e11]:
+                            - /url: https://www.aparat.com/khodnevis_mrud
+                            - img "khodnevis_mrud" [ref=f2e12]
+                          - generic [ref=f2e13]: 03:30
+                    - iframe [ref=e158]:
+                      - button "video poster khodnevis_mrud 02:04" [ref=f3e5] [cursor=pointer]:
+                        - img "video poster" [ref=f3e6]
+                        - generic [ref=f3e10]:
+                          - link [ref=f3e11]:
+                            - /url: https://www.aparat.com/khodnevis_mrud
+                            - img "khodnevis_mrud" [ref=f3e12]
+                          - generic [ref=f3e13]: 02:04
+                    - iframe [ref=e160]:
+                      - button "video poster khodnevis_mrud 11:45" [ref=f4e5] [cursor=pointer]:
+                        - img "video poster" [ref=f4e6]
+                        - generic [ref=f4e10]:
+                          - link [ref=f4e11]:
+                            - /url: https://www.aparat.com/khodnevis_mrud
+                            - img "khodnevis_mrud" [ref=f4e12]
+                          - generic [ref=f4e13]: 11:45
+                  - generic [ref=e161]:
+                    - img "arrow-Icon" [ref=e162] [cursor=pointer]
+                    - img "arrow-Icon" [ref=e163] [cursor=pointer]
+              - generic [ref=e164]:
+                - link [ref=e165] [cursor=pointer]:
+                  - /url: https://blogsrem.ir/
+                  - img "book" [ref=e166]
+                  - text: راهنمای جامع
+                - link [ref=e167] [cursor=pointer]:
+                  - /url: https://www.aparat.com/khodnevis_mrud
+                  - img "aparat" [ref=e168]
+                  - text: راهنمایی ویدیویی
+            - generic [ref=e169]:
+              - generic [ref=e170]: سؤالات متداول
+              - region "scrollable content" [ref=e175]:
+                - generic [ref=e177]:
+                  - list [ref=e179]:
+                    - listitem [ref=e180]:
+                      - checkbox [checked] [ref=e181] [cursor=pointer]
+                      - generic [ref=e182] [cursor=pointer]:
+                        - generic [ref=e183]: فرایند ایجاد قرارداد و دریافت کد رهگیری به چه شکل است ؟
+                        - img "noContract" [ref=e186]
+                      - paragraph: در صفحه اصلی یا پنل مدیریت قرارداد روی گزینه ایجاد قرارداد کلیک کرده و اطلاعات قرارداد را تکمیل کنید. بعد از تکمیل اطلاعات، طرفین قرارداد باید آن را امضا کرده و هر کدام یک شاهد از طرف خود به سامانه معرفی نمایند (در قراردادهای فروش، حضور اعضای قرارداد در جلسه مجازی الزامیست). در صورتی که امضای طرفین و امضای شاهدین ثبت شده باشد و یک ساعت از امضای طرفین گذشته باشد، کد رهگیری 13 رقمی قرارداد صادر خواهد شد.
+                  - list [ref=e188]:
+                    - listitem [ref=e189]:
+                      - checkbox [checked] [ref=e190] [cursor=pointer]
+                      - generic [ref=e191] [cursor=pointer]:
+                        - generic [ref=e192]: فرایند امضای الکترونیک در خودنویس به چه صورت می‌باشد ؟
+                        - img "noContract" [ref=e195]
+                      - paragraph: این فرایند از طریق ارسال پیامک حاوی یک کد 5 رقمی یکبار مصرف به شماره تلفن کاربر و ثبت آن در سامانه انجام می‌شود.
+                  - list [ref=e197]:
+                    - listitem [ref=e198]:
+                      - checkbox [checked] [ref=e199] [cursor=pointer]
+                      - generic [ref=e200] [cursor=pointer]:
+                        - generic [ref=e201]: چگونه وضعیت پیشرفت قرارداد را بررسی کنیم ؟
+                        - img "noContract" [ref=e204]
+                      - paragraph: در پنل مدیریت قرارداد، از طریق گزینه‌های قراردادهای اجاره و قراردادهای فروش در سایدبار به قراردادهای خود دسترسی خواهید داشت و می‌توانید وضعیت آن‌ها را بررسی نمایید. قراردادهای در حال تکمیل، شامل قراردادهایی هستند در حال تکمیل اطلاعات یا ثبت امضا می‌باشند. قراردادهای جاری، شامل قراردادهایی هستند که کد رهگیری آن‌ها صادر شده است. قراردادهای بایگانی‌شده، شامل قراردادهایی هستند که فسخ شده‌اند یا اینکه تاریخ آن‌‌ها به پایان رسیده است.
+                  - list [ref=e206]:
+                    - listitem [ref=e207]:
+                      - checkbox [checked] [ref=e208] [cursor=pointer]
+                      - generic [ref=e209] [cursor=pointer]:
+                        - generic [ref=e210]: آیا اطلاعات املاک و اقامتگاه من قابل مشاهده است ؟
+                        - img "noContract" [ref=e213]
+                      - paragraph: در پنل مدیریت قرارداد، به املاک و اقامتگاه خود دسترسی خواهید داشت. اطلاعات املاک و اقامتگاه از سامانه ملی املاک و اسکان کشور دریافت می‌شود. برای ثبت یا ویرایش ملک یا اقامتگاه به این سامانه مراجعه نمایید.
+                  - list [ref=e215]:
+                    - listitem [ref=e216]:
+                      - checkbox [checked] [ref=e217] [cursor=pointer]
+                      - generic [ref=e218] [cursor=pointer]:
+                        - generic [ref=e219]: امکان بازپس‌گیری امضا و لغو قرارداد به چه نحو می‌باشد ؟
+                        - img "noContract" [ref=e222]
+                      - paragraph: اختیار یا امکان بازپس‌گیری امضا و لغو قرارداد (خیار مجلس) فقط تا 1 ساعت از زمان آخرین امضای طرفین قرارداد (به غیر از شاهدین) وجود دارد و پس از اتمام زمان مذکور، این اختیار از طرفین سلب می‌گردد.
+                  - list [ref=e224]:
+                    - listitem [ref=e225]:
+                      - checkbox [checked] [ref=e226] [cursor=pointer]
+                      - generic [ref=e227] [cursor=pointer]:
+                        - generic [ref=e228]: امکان ایجاد قرارداد برای قراردادهایی با چند صاحب‌ملک وجود دارد ؟
+                        - img "noContract" [ref=e231]
+                      - paragraph: بله، در فرایند ایجاد قرارداد، صاحب‌ملک اصلی (ایجاد کننده قرارداد یا فرد معرفی شده توسط طرف قرارداد) می‌تواند در قسمت وضعیت مؤجرین یا وضعیت فروشندگان، اطلاعات شرکای خود را ثبت نماید. برای دریافت کد رهگیری امضای تمام مؤجرین یا فروشندگان الزامیست.
+                  - list [ref=e233]:
+                    - listitem [ref=e234]:
+                      - checkbox [checked] [ref=e235] [cursor=pointer]
+                      - generic [ref=e236] [cursor=pointer]:
+                        - generic [ref=e237]: اشخاص حقوقی چگونه قرارداد را امضا ‌می‌کنند ؟
+                        - img "noContract" [ref=e240]
+                      - paragraph: مدیرعامل شخص حقوقی (شرکت، سازمان و ...) باید قبل از ورود به فرایند ایجاد قرارداد، اطلاعات شرکت یا سازمان خود را تکمیل کرده و صاحبان امضا را مشخص نماید. برای دریافت کد رهگیری امضای تمام صاحبان امضا الزامیست.
+                  - list [ref=e242]:
+                    - listitem [ref=e243]:
+                      - checkbox [checked] [ref=e244] [cursor=pointer]
+                      - generic [ref=e245] [cursor=pointer]:
+                        - generic [ref=e246]: آیا تمدید قرارداد یا افزودن الحاقیه امکان‌پذیر می‌باشد ؟
+                        - img "noContract" [ref=e249]
+                      - paragraph: بله، بعد از صدور کد رهگیری امکان تمدید قرارداد و افزودن الحاقیه وجود دارد. با استفاده از گزینه تمدید در صفحه قرارداد، قرارداد جدیدی ساخته خواهد شد که شامل اطلاعات قرارداد قبلی است (به جز تاریخ و مبلغ قرارداد). برای تمدید، امضای طرفین و شاهدین الزامی است. برای الحاقیه نیز، بعد از تنظیم متن الحاقیه، امضای طرفین لازم است.
+                  - list [ref=e251]:
+                    - listitem [ref=e252]:
+                      - checkbox [checked] [ref=e253] [cursor=pointer]
+                      - generic [ref=e254] [cursor=pointer]:
+                        - generic [ref=e255]: آیا فسخ قرارداد امکان‌پذیر می‌باشد ؟
+                        - img "noContract" [ref=e258]
+                      - paragraph: بله، با موافقت طرفین قرارداد، هر کدام از ایشان می‌توانند از طریق دکمه فسخ در صفحه قرارداد، نسبت به فسخ قرارداد اقدام نمایند.
+        - generic [ref=e259]:
+          - generic [ref=e260]:
+            - generic [ref=e261]:
+              - generic [ref=e262]:
+                - img "performance-icon" [ref=e263]
+                - generic [ref=e264]: عملکرد خودنویس
+                - img "performance-icon" [ref=e265]
+              - generic [ref=e266]: آمار سامانه خودنویس در ثبت قراردادها
+            - link "مشاهده آمار کلی" [ref=e267] [cursor=pointer]:
+              - /url: https://amar.srem.ir/
+          - generic [ref=e268]:
+            - generic [ref=e269]:
+              - generic [ref=e270]:
+                - generic [ref=e271]: بیش از
+                - generic [ref=e272]: 4 میلیون
+              - generic [ref=e273]: کاربران سامانه خودنویس
+            - generic [ref=e274]:
+              - generic [ref=e275]:
+                - generic [ref=e276]: بیش از
+                - generic [ref=e277]: 800 هزار
+              - generic [ref=e278]: قرارداد تکمیل شده اجاره
+            - generic [ref=e279]:
+              - generic [ref=e280]:
+                - generic [ref=e281]: بیش از
+                - generic [ref=e282]: 10 هزار
+              - generic [ref=e283]: قرارداد تکمیل شده فروش
+        - generic [ref=e285]:
+          - generic [ref=e286]:
+            - generic [ref=e288]: اخبار
+            - link "مشاهده تمامی اخبار" [ref=e289] [cursor=pointer]:
+              - /url: https://blogsrem.ir/category/news/
+          - generic [ref=e290]:
+            - img "arrow-Icon" [ref=e291] [cursor=pointer]
+            - img "arrow-Icon" [ref=e292] [cursor=pointer]
+    - contentinfo [ref=e293]:
+      - generic [ref=e294]:
+        - generic [ref=e295]:
+          - generic [ref=e296]:
+            - img "mainLogo" [ref=e297]
+            - paragraph [ref=e298]: در راستای رصد و نظارت بر بازار مسکن، ثبت کلیه معاملات املاک و مستغلات اعم از خرید، فروش، پیش خرید، پیش فروش، رهن و اجاره مسکن، در سامانه خودنویس، أخذ شناسه (کد) رهگیری بدون أخذ هزینه الزامی است.
+          - generic [ref=e299]:
+            - generic [ref=e300]:
+              - paragraph [ref=e302]: دسترسی ها
+              - generic [ref=e303]:
+                - link "پنل عمومی" [ref=e304] [cursor=pointer]:
+                  - /url: /dashboard
+                - button "پنل مشاور املاک" [ref=e306] [cursor=pointer]
+                - link "قراردادهای اجاره" [ref=e307] [cursor=pointer]:
+                  - /url: /contractsList/rent/in_process
+                - link "قراردادهای فروش" [ref=e308] [cursor=pointer]:
+                  - /url: /contractsList/sale/in_process
+                - link "استعلام کد رهگیری" [ref=e309] [cursor=pointer]:
+                  - /url: /inquiry
+            - generic [ref=e310]:
+              - paragraph [ref=e312]: پیوندها
+              - generic [ref=e313]:
+                - paragraph [ref=e315]:
+                  - link "پایگاه اطلاع رسانی مقام معظم رهبری" [ref=e316] [cursor=pointer]:
+                    - /url: https://www.leader.ir/
+                - paragraph [ref=e318]:
+                  - link "پایگاه اطلاع رسانی ریاست جمهوری" [ref=e319] [cursor=pointer]:
+                    - /url: https://www.president.ir/
+                - paragraph [ref=e321]:
+                  - link "پایگاه اطلاع رسانی دولت" [ref=e322] [cursor=pointer]:
+                    - /url: https://dolat.ir/
+                - paragraph [ref=e324]:
+                  - link "وزارت راه و شهرسازی" [ref=e325] [cursor=pointer]:
+                    - /url: https://mrud.ir/
+            - generic [ref=e326]:
+              - paragraph [ref=e328]: ارتباط با ما
+              - generic [ref=e329]:
+                - generic [ref=e330]:
+                  - paragraph [ref=e331]: "شماره تماس :"
+                  - link "021-91002068" [ref=e333] [cursor=pointer]:
+                    - /url: tel:02191002068
+                - generic [ref=e334]:
+                  - paragraph [ref=e335]: "نشانی :"
+                  - link "میدان آرژانتین ، بلوار آفریقا ، اراضی عباس آباد ، ساختمان شهید دادمان" [ref=e336] [cursor=pointer]:
+                    - /url: https://nshn.ir/f4_bvoG0_xidiR
+                - generic [ref=e337]:
+                  - paragraph [ref=e338]: "شبکه اجتماعی :"
+                  - generic [ref=e339]:
+                    - link [ref=e340] [cursor=pointer]:
+                      - /url: https://t.me/khodnevis_mrud
+                      - img "https://t.me/khodnevis_mrud" [ref=e342]
+                    - link [ref=e343] [cursor=pointer]:
+                      - /url: https://x.com/khodnevis_mrud/
+                      - img "https://x.com/khodnevis_mrud/" [ref=e345]
+                    - link [ref=e346] [cursor=pointer]:
+                      - /url: https://www.instagram.com/khodnevis_mrud/
+                      - img "https://www.instagram.com/khodnevis_mrud/" [ref=e348]
+                    - link [ref=e349] [cursor=pointer]:
+                      - /url: https://rubika.ir/khodnevis_mrud
+                      - img "https://rubika.ir/khodnevis_mrud" [ref=e351]
+                    - link [ref=e352] [cursor=pointer]:
+                      - /url: https://ble.ir/khodnevis_mrud
+                      - img "https://ble.ir/khodnevis_mrud" [ref=e354]
+                    - link [ref=e355] [cursor=pointer]:
+                      - /url: https://eitaa.com/khodnevis_mrud
+                      - img "https://eitaa.com/khodnevis_mrud" [ref=e357]
+                    - link [ref=e358] [cursor=pointer]:
+                      - /url: https://www.aparat.com/khodnevis_mrud
+                      - img "https://www.aparat.com/khodnevis_mrud" [ref=e360]
+        - generic [ref=e361]:
+          - generic [ref=e362]: v 1.7.3
+          - paragraph [ref=e363]: تمامی حقوق این سامانه متعلق به وزارت راه و شهرسازی می باشد.

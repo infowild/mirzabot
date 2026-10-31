@@ -42,7 +42,13 @@ function get_clinets($username, $namepanel)
     // Handle both single-object and array-of-objects in obj
     $c = $data_get['obj'];
     if (isset($c[0]) && is_array($c[0])) {
-        $c = $c[0];
+        $matches = array_values(array_filter($c, function ($item) use ($username) {
+            return is_array($item) && ($item['email'] ?? '') === $username;
+        }));
+        $c = $matches[0] ?? [];
+    }
+    if (!is_array($c) || ($c['email'] ?? '') !== $username) {
+        return ['status' => 502, 'error' => 'Panel returned a different client', 'body' => ''];
     }
 
     // 2) Fetch traffic counters: up, down, total, expiryTime
@@ -66,14 +72,15 @@ function get_clinets($username, $namepanel)
         }
     }
 
-    // 3) Get subId — try GET response, then search endpoint, then lazy-generate
+    // Resolve the panel's current ID, never an invoice's cached ID.
     $subId = $c['subId'] ?? '';
+    $subIdKnown = array_key_exists('subId', $c);
 
     // Fallback 1: search endpoint (filters by exact email match)
-    if (empty($subId)) {
+    for ($page = 1; empty($subId) && $page <= 100; $page++) {
         $search_qs = http_build_query([
             'search'   => $username,
-            'page'     => 1,
+            'page'     => $page,
             'size'     => 25,
             'filter'   => '',
             'protocol' => '',
@@ -85,13 +92,21 @@ function get_clinets($username, $namepanel)
         $resp_search = $req_search->get();
         if (empty($resp_search['error']) && $resp_search['status'] == 200) {
             $data_search = json_decode($resp_search['body'], true);
-            $items = $data_search['obj']['items'] ?? [];
+            $items = !empty($data_search['success']) ? ($data_search['obj']['items'] ?? []) : [];
+            $matched = false;
             foreach ($items as $item) {
-                if (($item['email'] ?? '') === $username && !empty($item['subId'])) {
+                if (($item['email'] ?? '') === $username && array_key_exists('subId', $item)) {
                     $subId = $item['subId'];
+                    $subIdKnown = true;
+                    $matched = true;
                     break;
                 }
             }
+            if ($matched || count($items) < 25) {
+                break;
+            }
+        } else {
+            break;
         }
     }
 
@@ -104,6 +119,8 @@ function get_clinets($username, $namepanel)
         'up'         => $up,
         'down'       => $down,
         'subId'      => $subId,
+        'subIdKnown' => $subIdKnown,
+        'subscriptionClient' => $c,
         'lastOnline' => 0,
         'inboundId'  => isset($c['inboundIds'][0]) ? intval($c['inboundIds'][0]) : 0,
         'tgId'       => $c['tgId']       ?? 0,
@@ -115,6 +132,51 @@ function get_clinets($username, $namepanel)
         'body'   => json_encode(array('success' => true, 'obj' => $merged)),
         'error'  => '',
     );
+}
+
+function xui_invoice_for_location($username, $namepanel)
+{
+    $invoices = select('invoice', '*', 'username', $username, 'fetchAll');
+    foreach (($invoices ?: []) as $invoice) {
+        if (($invoice['Service_location'] ?? '') === $namepanel) {
+            return $invoice;
+        }
+    }
+    return false;
+}
+
+function xui_resolve_subscription_id($namepanel, $username, array $client)
+{
+    if (!empty($client['subId'])) {
+        return ['subId' => $client['subId']];
+    }
+    // A missing field/failed lookup is not evidence that the panel has no ID.
+    if (empty($client['subIdKnown'])) {
+        return ['error' => 'Panel did not return a subscription ID; no changes were made'];
+    }
+    $candidate = bin2hex(random_bytes(8));
+    $original = $client['subscriptionClient'] ?? [];
+    $response = updateClient($namepanel, $username, array_merge($original, [
+        'email' => $username,
+        'enable' => $original['enable'] ?? $client['enable'],
+        'totalGB' => $original['totalGB'] ?? $client['total'],
+        'expiryTime' => $original['expiryTime'] ?? $client['expiryTime'],
+        'subId' => $candidate,
+        'tgId' => $client['tgId'] ?? 0,
+        'limitIp' => $client['limitIp'] ?? 0,
+    ]));
+    $body = json_decode($response['body'] ?? '', true);
+    if (!empty($response['error']) || ($response['status'] ?? 0) != 200 || empty($body['success'])) {
+        return ['error' => 'Panel rejected subscription ID update'];
+    }
+    // Read back even after success: only deliver an ID actually stored by the panel.
+    $verified = get_clinets($username, $namepanel);
+    $body = json_decode($verified['body'] ?? '', true);
+    if (!empty($verified['error']) || ($verified['status'] ?? 0) != 200 ||
+        empty($body['success']) || empty($body['obj']['subId'])) {
+        return ['error' => 'Could not verify subscription ID after update'];
+    }
+    return ['subId' => $body['obj']['subId']];
 }
 
 function addClient($namepanel, $usernameac, $Expire, $Total, $Uuid, $Flow, $subid, $inboundid, $name_product, $note = "")
@@ -208,9 +270,28 @@ function get_client_sublinks($namepanel, $subId)
     $resp    = $req->get();
     if (empty($resp['error']) && $resp['status'] == 200) {
         $data = json_decode($resp['body'], true);
-        if (!empty($data['obj']) && is_array($data['obj'])) {
+        if (!empty($data['success']) && !empty($data['obj']) && is_array($data['obj'])) {
             return array_values(array_filter($data['obj']));
         }
     }
-    return [];
+    // Older/restored panels may not expose subLinks. The configured public
+    // subscription is the fallback; never send panel authorization to it.
+    $publicUrl = rtrim($panel['linksubx'] ?? '', '/') . '/' . rawurlencode($subId);
+    if (!filter_var($publicUrl, FILTER_VALIDATE_URL)) {
+        return [];
+    }
+    $publicRequest = new CurlRequest($publicUrl);
+    $publicResponse = $publicRequest->get();
+    if (!empty($publicResponse['error']) || ($publicResponse['status'] ?? 0) != 200) {
+        return [];
+    }
+    $content = trim($publicResponse['body'] ?? '');
+    if (!preg_match('/^(vless|vmess|trojan|ss):\/\//', $content)) {
+        $decoded = base64_decode($content, true);
+        $content = $decoded === false ? '' : trim($decoded);
+    }
+    $links = preg_split('/\s+/', $content, -1, PREG_SPLIT_NO_EMPTY);
+    return array_values(array_filter($links, function ($link) {
+        return preg_match('/^(vless|vmess|trojan|ss):\/\/\S+$/', $link) === 1;
+    }));
 }

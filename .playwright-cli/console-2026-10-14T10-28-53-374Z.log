@@ -1,0 +1,4 @@
+[    1172ms] [ERROR] Access to fetch at 'https://monitor.srem.ir/statistics/khodnevistotalstatistics' from origin 'https://khodnevis.mrud.ir' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://khodnevis.mrud.ir/:0
+[    1173ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://monitor.srem.ir/statistics/khodnevistotalstatistics:0
+[    1332ms] [WARNING] Swiper Loop Warning: The number of slides is not enough for loop mode, it will be disabled and not function properly. You need to add more slides (or make duplicates) or lower the values of slidesPerView and slidesPerGroup parameters @ https://khodnevis.mrud.ir/_next/static/chunks/1824-67b5d65138e038da.js:0
+[   21819ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_TIMED_OUT @ https://172.16.74.115:8888/matomo.js:0
