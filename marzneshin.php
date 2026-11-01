@@ -95,7 +95,7 @@ function revoke_subm($username_account,$location)
     return $response;
 }
 #-----------------------------#
-function adduserm($location,$data_limit,$username_ac,$timestamp,$name_product,$note ='',$data_limit_reset = 'no_reset')
+function adduserm($location,$data_limit,$username_ac,$timestamp,$name_product,$note ='',$data_limit_reset = 'no_reset',$preserveExpiry = false)
 {
     global $pdo;
     $product = select('product',"*","name_product",$name_product,"select");
@@ -112,7 +112,7 @@ function adduserm($location,$data_limit,$username_ac,$timestamp,$name_product,$n
             "data_limit_reset_strategy" => $data_limit_reset,
         );
     if ($name_product == "usertest"){
-        if($marzban_list_get['on_hold_test'] == "0"){
+        if($preserveExpiry || $marzban_list_get['on_hold_test'] == "0"){
         if ($timestamp == 0) {
             $data["expire"] = null;
             $data["expire_strategy"] = "never";
@@ -133,7 +133,7 @@ function adduserm($location,$data_limit,$username_ac,$timestamp,$name_product,$n
             }
         }
     }else{
-        if($marzban_list_get['conecton'] == "offconecton"){
+        if($preserveExpiry || $marzban_list_get['conecton'] == "offconecton"){
         if ($timestamp == 0) {
             $data["expire"] = null;
             $data["expire_strategy"] = "never";

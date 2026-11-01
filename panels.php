@@ -57,10 +57,13 @@ class ManagePanel
         }
         $expire = $Data_Config['expire'];
         $data_limit = $Data_Config['data_limit'];
+        // A location change continues an active service's existing deadline.
+        // It must not apply the destination's new/test-user activation policy.
+        $preserveExpiry = ($Data_Config['type'] ?? '') === 'change_location';
         $note = "{$Data_Config['from_id']} | {$Data_Config['username']} | {$Data_Config['type']}";
         if ($Get_Data_Panel['type'] == "marzban") {
             //create user
-            $ConnectToPanel = adduser($Get_Data_Panel['name_panel'], $data_limit, $usernameC, $expire, $note, $Get_Data_Product['data_limit_reset'], $Get_Data_Product['name_product']);
+            $ConnectToPanel = adduser($Get_Data_Panel['name_panel'], $data_limit, $usernameC, $expire, $note, $Get_Data_Product['data_limit_reset'], $Get_Data_Product['name_product'], $preserveExpiry);
             if (!empty($ConnectToPanel['status']) && $ConnectToPanel['status'] == 500) {
                 return array(
                     'status' => 'Unsuccessful',
@@ -102,7 +105,7 @@ class ManagePanel
             }
         } elseif ($Get_Data_Panel['type'] == "marzneshin") {
             //create user
-            $ConnectToPanel = adduserm($Get_Data_Panel['name_panel'], $data_limit, $usernameC, $expire, $Get_Data_Product['name_product'], $note, $Get_Data_Product['data_limit_reset']);
+            $ConnectToPanel = adduserm($Get_Data_Panel['name_panel'], $data_limit, $usernameC, $expire, $Get_Data_Product['name_product'], $note, $Get_Data_Product['data_limit_reset'], $preserveExpiry);
             if (!empty($ConnectToPanel['status']) && $ConnectToPanel['status'] == 500) {
                 return array(
                     'status' => 'Unsuccessful',
@@ -149,7 +152,7 @@ class ManagePanel
             } else {
                 $inbounds = $Get_Data_Panel['inboundid'];
             }
-            $data_Output = addClient($Get_Data_Panel['name_panel'], $usernameC, $expire, $data_limit, generateUUID(), "", $subId, $inbounds, $Get_Data_Product['name_product'], $note);
+            $data_Output = addClient($Get_Data_Panel['name_panel'], $usernameC, $expire, $data_limit, generateUUID(), "", $subId, $inbounds, $Get_Data_Product['name_product'], $note, $preserveExpiry);
             if (!empty($data_Output['error'])) {
                 return array(
                     'status' => 'Unsuccessful',

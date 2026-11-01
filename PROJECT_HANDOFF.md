@@ -1,6 +1,16 @@
 # MirzaBot project handoff
 
-Updated: 2026-10-31
+Updated: 2026-11-01
+
+## Current location-expiry repair
+
+- The user confirmed the prior subscription issue is fixed on production.
+- New request: changing a service's location makes the remaining validity appear unlimited. Do not deploy an untested change or alter unrelated behavior.
+- Reproduced a concrete defect: the location handler passes operation type `usertest`, and createUser applies the destination's trial first-use policy to an already-active service. XUI turns its absolute deadline into a negative on-hold duration; Marzban/Marzneshin similarly lose the fixed deadline.
+- Local fix marks only location changes as `change_location` and passes an optional preserveExpiry flag through createUser to XUI, Marzban and Marzneshin adapters. Ordinary callers retain the default false behavior. Unlimited sources remain unlimited; finite sources retain the exact timestamp (milliseconds for XUI).
+- The new offline test exercises actual createUser and adapter payloads, XUI readback, existing trial/paid purchase policies, remaining volume and inbound IDs. The baseline fails the expiry assertion. 112 cases pass in each of Asia/Tehran and UTC; the 16 subscription regression scenarios also pass. PHP 8.2 lint passes for changed PHP files.
+- These expiry corrections have NOT been applied to production. Existing affected services have NOT been repaired; use historical change_location records and actual panel state to determine their previous deadline before changing live data.
+- No commit or push performed by the agent.
 
 ## Current subscription repair (supersedes historical task below)
 

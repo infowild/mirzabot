@@ -205,7 +205,7 @@ function revoke_sub($username_account, $location)
     return $response;
 }
 #-----------------------------#
-function adduser($location, $data_limit, $username_ac, $timestamp, $note = '', $data_limit_reset = 'no_reset', $name_product = false)
+function adduser($location, $data_limit, $username_ac, $timestamp, $note = '', $data_limit_reset = 'no_reset', $name_product = false, $preserveExpiry = false)
 {
     $marzban_list_get = select("marzban_panel", "*", "name_panel", $location, "select");
     $Check_token = token_panel($marzban_list_get['code_panel']);
@@ -238,7 +238,7 @@ function adduser($location, $data_limit, $username_ac, $timestamp, $note = '', $
             $data['group_ids'] = $inbounds;
         }
         if ($name_product == "usertest") {
-            if ($marzban_list_get['on_hold_test'] == "0") {
+            if ($preserveExpiry || $marzban_list_get['on_hold_test'] == "0") {
                 if ($timestamp == 0) {
                     $data["expire"] = 0;
                 } else {
@@ -254,7 +254,7 @@ function adduser($location, $data_limit, $username_ac, $timestamp, $note = '', $
                 }
             }
         } else {
-            if ($marzban_list_get['conecton'] == "offconecton") {
+            if ($preserveExpiry || $marzban_list_get['conecton'] == "offconecton") {
                 if ($timestamp == 0) {
                     $data["expire"] = 0;
                 } else {
@@ -282,7 +282,7 @@ function adduser($location, $data_limit, $username_ac, $timestamp, $note = '', $
             $data['inbounds'] = $inbounds;
         }
         if ($name_product == "usertest") {
-            if ($marzban_list_get['on_hold_test'] == "0") {
+            if ($preserveExpiry || $marzban_list_get['on_hold_test'] == "0") {
                 if ($timestamp == 0) {
                     $data["expire"] = 0;
                 } else {
@@ -298,7 +298,7 @@ function adduser($location, $data_limit, $username_ac, $timestamp, $note = '', $
                 }
             }
         } else {
-            if ($marzban_list_get['conecton'] == "offconecton") {
+            if ($preserveExpiry || $marzban_list_get['conecton'] == "offconecton") {
                 if ($timestamp == 0) {
                     $data["expire"] = 0;
                 } else {

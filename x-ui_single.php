@@ -159,7 +159,7 @@ function xui_resolve_subscription_id($namepanel, $username, array $client)
     return ['subId' => '', 'error' => 'Panel did not return a subscription ID'];
 }
 
-function addClient($namepanel, $usernameac, $Expire, $Total, $Uuid, $Flow, $subid, $inboundid, $name_product, $note = "")
+function addClient($namepanel, $usernameac, $Expire, $Total, $Uuid, $Flow, $subid, $inboundid, $name_product, $note = "", $preserveExpiry = false)
 {
     if (!isset($usernameac)) {
         return array('status' => 500, 'msg' => 'username is null');
@@ -172,6 +172,9 @@ function addClient($namepanel, $usernameac, $Expire, $Total, $Uuid, $Flow, $subi
         $use_onhold = ($panel['on_hold_test'] == "1");
     } else {
         $use_onhold = ($panel['conecton'] == "onconecton");
+    }
+    if ($preserveExpiry) {
+        $use_onhold = false;
     }
 
     if ($use_onhold) {

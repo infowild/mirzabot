@@ -2282,7 +2282,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         'data_limit' => $data_limit,
         'from_id' => $from_id,
         'username' => $username,
-        'type' => 'usertest'
+        'type' => 'change_location'
     );
     $expirationDate = $DataUserOut['expire'] ? jdate('Y/m/d', $DataUserOut['expire']) : $textbotlang['users']['status']['unlimited'];
     $timeDiff = $DataUserOut['expire'] - time();
