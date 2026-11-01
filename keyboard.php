@@ -679,7 +679,17 @@ $list_marzban_panel_users_om['inline_keyboard'][] = [
 $list_marzban_panel_userom = json_encode($list_marzban_panel_users_om);
 
 //------------------  [ change location ]----------------//
-$stmt = $pdo->prepare("SELECT * FROM marzban_panel WHERE status = 'active' AND (agent = :agent OR agent = 'all') AND name_panel != :name_panel");
+function isChangeLocationDestinationEnabled($panel, $agent, $userId)
+{
+    if (!is_array($panel) || ($panel['changeloc'] ?? '') !== 'onchangeloc' ||
+        ($panel['status'] ?? '') !== 'active' || !in_array($panel['agent'] ?? '', [$agent, 'all'], true)) {
+        return false;
+    }
+    $hiddenUsers = json_decode($panel['hide_user'] ?? '[]', true);
+    return !is_array($hiddenUsers) || !in_array($userId, $hiddenUsers);
+}
+
+$stmt = $pdo->prepare("SELECT * FROM marzban_panel WHERE status = 'active' AND changeloc = 'onchangeloc' AND (agent = :agent OR agent = 'all') AND name_panel != :name_panel");
 $stmt->bindValue(':name_panel', $users['Processing_value_four'], PDO::PARAM_STR);
 $stmt->bindValue(':agent', $users['agent'], PDO::PARAM_STR);
 $stmt->execute();
@@ -688,7 +698,7 @@ $panelcount = select("marzban_panel", "*", "status", "active", "count");
 if ($panelcount > 10) {
     $temp_row = [];
     while ($result = $stmt->fetch(PDO::FETCH_ASSOC)) {
-        if ($result['hide_user'] != null && in_array($from_id, json_decode($result['hide_user'], true)))
+        if (!isChangeLocationDestinationEnabled($result, $users['agent'], $from_id))
             continue;
 
         $temp_row[] = ['text' => $result['name_panel'], 'callback_data' => "changelocselectlo-{$result['code_panel']}"];
@@ -702,7 +712,7 @@ if ($panelcount > 10) {
     }
 } else {
     while ($result = $stmt->fetch(PDO::FETCH_ASSOC)) {
-        if ($result['hide_user'] != null and in_array($from_id, json_decode($result['hide_user'], true)))
+        if (!isChangeLocationDestinationEnabled($result, $users['agent'], $from_id))
             continue;
         $list_marzban_panel_users_change['inline_keyboard'][] = [
             ['text' => $result['name_panel'], 'callback_data' => "changelocselectlo-{$result['code_panel']}"]

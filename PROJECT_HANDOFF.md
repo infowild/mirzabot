@@ -2,6 +2,15 @@
 
 Updated: 2026-11-01
 
+## Current location-panel visibility repair
+
+- User confirmed the expiry fix works on production. Do not redeploy an older index or panel adapter.
+- Current request: panels with change-location disabled still appear as destinations; the existing per-panel capability should exclude them manually.
+- Confirmed cause: the change-location list SQL in keyboard.php filters active status, agent and source location but omits changeloc. Admin correctly stores onchangeloc/offchangeloc.
+- Local fix adds the onchangeloc filter to this list only. A shared destination guard in keyboard.php preserves active/agent/hidden-user restrictions and is checked at selection and confirmation, using uncached panel reads. Confirmation also rechecks the source capability and rejects a stale same-location target. No admin setting or schema change is needed.
+- 27 offline scenarios exercise actual list SQL with in-memory SQLite, both keyboard layouts, toggling off/on, an empty list, invalid/stale callbacks and disabling a destination between selection and confirmation. Baseline fails the list test. Existing expiry and subscription suites must continue passing before delivery.
+- New production files are keyboard.php and index.php only. This visibility repair is not yet deployed. The existing toggle also disables outbound location changes for services on that panel, as before.
+
 ## Current location-expiry repair
 
 - The user confirmed the prior subscription issue is fixed on production.
@@ -9,7 +18,7 @@ Updated: 2026-11-01
 - Reproduced a concrete defect: the location handler passes operation type `usertest`, and createUser applies the destination's trial first-use policy to an already-active service. XUI turns its absolute deadline into a negative on-hold duration; Marzban/Marzneshin similarly lose the fixed deadline.
 - Local fix marks only location changes as `change_location` and passes an optional preserveExpiry flag through createUser to XUI, Marzban and Marzneshin adapters. Ordinary callers retain the default false behavior. Unlimited sources remain unlimited; finite sources retain the exact timestamp (milliseconds for XUI).
 - The new offline test exercises actual createUser and adapter payloads, XUI readback, existing trial/paid purchase policies, remaining volume and inbound IDs. The baseline fails the expiry assertion. 112 cases pass in each of Asia/Tehran and UTC; the 16 subscription regression scenarios also pass. PHP 8.2 lint passes for changed PHP files.
-- These expiry corrections have NOT been applied to production. Existing affected services have NOT been repaired; use historical change_location records and actual panel state to determine their previous deadline before changing live data.
+- The user applied the expiry package and confirmed it works on production. Existing affected services have NOT been bulk-repaired; use historical change_location records and actual panel state to determine their previous deadline before changing live data.
 - No commit or push performed by the agent.
 
 ## Current subscription repair (supersedes historical task below)
