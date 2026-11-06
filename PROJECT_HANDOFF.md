@@ -1,6 +1,17 @@
 # MirzaBot project handoff
 
-Updated: 2026-11-01
+Updated: 2026-11-05
+
+## Current standalone agent-credit menu
+
+- User explicitly requested a separate agent-credit-management option in the agents menu, preserving existing bot behavior.
+- Added administrator-only entry in admin.php's agentlistusers menu and a narrowly scoped agent_credit.php navigation module. Ordinary callbacks fall through to the existing admin handlers.
+- New module lists N/N2 agents with pagination and numeric-ID search; details show wallet balance, debt, debt ceiling and purchase capacity, with escaped user-provided text. Non-agents and stale role changes are rejected.
+- Wallet add/subtract and advanced-agent cap buttons route to the unchanged addbalanceuser_, lowbalanceuser_ and maxbuyagent_ handlers, preserving existing payment reports, notifications and amount validation. No purchase logic or schema changes. Cap 0 retains the existing unlimited meaning, explicitly explained in the UI. Normal agents remain prepaid-only.
+- Added FA/EN/RU/ZH labels. Production files: admin.php, agent_credit.php, lang/fa.php, lang/en.php, lang/ru.php, lang/zh.php. Install agent_credit.php before replacing admin.php; stage and lint the complete bundle first.
+- 83 offline UI/routing/legacy-operation assertions pass with in-memory SQLite, including real execution of existing cap and balance handlers. Also pass: 27 location panel visibility scenarios, 112 expiry cases in each timezone and 16 subscription regression scenarios. Changed PHP files pass PHP 8.2 lint; diff whitespace check passes.
+- New menu has NOT been deployed; no real agent funds or debt ceilings changed, no commit/push performed by the agent.
+- The prior product-visibility report for one advanced agent remains unconfirmed: real agent ID/product/location data were requested but not provided. Do not change price groups or product access based on assumptions.
 
 ## Current location-panel visibility repair
 

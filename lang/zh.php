@@ -2,6 +2,17 @@
 
 
 return [
+        'agentCredit' => [
+                'menu' => '💳 代理商信用管理', 'list' => '请选择代理商；姓名旁显示钱包余额。',
+                'empty' => '暂无代理商。', 'search' => '🔎 按数字 ID 搜索',
+                'searchPrompt' => '请输入代理商的数字 ID。',
+                'notFound' => '未找到代理商或账户类型已更改，请重新打开列表。',
+                'invalidId' => '请输入有效的正整数 ID。',
+                'back' => '返回', 'next' => '下一页', 'previous' => '上一页', 'refresh' => '🔄 刷新',
+                'currency' => '托曼', 'unlimited' => '无限制', 'prepaid' => '仅使用余额（普通代理商）',
+                'details' => "ID：<code>%s</code>\n用户名：<code>%s</code>\n类型：%s\n钱包余额：%s\n当前欠款：%s\n欠款上限：%s\n当前可购买金额：%s",
+                'notice' => '高级代理商的欠款上限为 0 表示无限信用额度。修改上限不会改变钱包余额或现有欠款。',
+        ],
         'users' => [
                 'Balance' => [
                         'Failed' => '⭕️ 您的支付未通过确认',

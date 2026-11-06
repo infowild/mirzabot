@@ -2,6 +2,17 @@
 
 
 return [
+        'agentCredit' => [
+                'menu' => '💳 Agent credit management', 'list' => 'Select an agent; wallet balances appear beside names.',
+                'empty' => 'No agents found.', 'search' => '🔎 Search by numeric ID',
+                'searchPrompt' => 'Send the agent\'s numeric ID.',
+                'notFound' => 'Agent not found or account type changed. Reopen the list.',
+                'invalidId' => 'Send a valid positive numeric ID.',
+                'back' => 'Back', 'next' => 'Next', 'previous' => 'Previous', 'refresh' => '🔄 Refresh',
+                'currency' => 'toman', 'unlimited' => 'Unlimited', 'prepaid' => 'Prepaid only (normal agent)',
+                'details' => "ID: <code>%s</code>\nUsername: <code>%s</code>\nType: %s\nWallet balance: %s\nCurrent debt: %s\nDebt ceiling: %s\nCurrent purchase capacity: %s",
+                'notice' => 'For advanced agents, a debt ceiling of 0 means unlimited credit. Changing the ceiling does not change the wallet balance or existing debt.',
+        ],
         'users' => [
                 'Balance' => [
                         'Failed' => '⭕️ Your payment has not been confirmed',

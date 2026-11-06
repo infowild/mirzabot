@@ -6,6 +6,11 @@ $text_panel_admin_login_template = sprintf($textbotlang['Admin']['adminphp']['ms
 if (!in_array($from_id, $admin_ids))
     return;
 
+require_once __DIR__ . '/agent_credit.php';
+if (handleAgentCreditManagement()) {
+    return;
+}
+
 $domainhostsEscaped = htmlspecialchars($domainhosts, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 
 $miniAppInstructionText = sprintf($textbotlang['Admin']['adminphp']['msg_mini_app_instruction'], $domainhostsEscaped);
@@ -4003,8 +4008,14 @@ elseif ($datain == "systemsms") {
     update("user", "pagenumber", $next_page, "id", $from_id);
     Editmessagetext($from_id, $message_id, $textbotlang['Admin']['manageUser']['manageUserBtnDesc'], $keyboard_json);
 } elseif ($datain == "agentlistusers") {
+    $agentCreditMenuButtons = [];
+    if (($adminrulecheck['rule'] ?? '') === 'administrator') {
+        $agentCreditMenuButtons[] = [
+            ['text' => $textbotlang['agentCredit']['menu'] ?? '💳 مدیریت اعتبار نمایندگان', 'callback_data' => 'agentcredit_list_0'],
+        ];
+    }
     $keyboardtypelistuser = json_encode([
-        'inline_keyboard' => [
+        'inline_keyboard' => array_merge($agentCreditMenuButtons, [
             [
                 ['text' => "n", 'callback_data' => "agenttypshowlist_n"],
                 ['text' => "n2", 'callback_data' => "agenttypshowlist_n2"],
@@ -4012,7 +4023,7 @@ elseif ($datain == "systemsms") {
             [
                 ['text' => $textbotlang['keyboard']['allAgents'], 'callback_data' => "agenttypshowlist_all"],
             ]
-        ]
+        ])
     ]);
     Editmessagetext($from_id, $message_id, $textbotlang['Admin']['adminphp']['ask_group'], $keyboardtypelistuser);
 } elseif (preg_match('/agenttypshowlist_(\w+)/', $datain, $datagetr)) {
